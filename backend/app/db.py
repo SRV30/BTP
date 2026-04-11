@@ -2,6 +2,7 @@ import os
 
 from dotenv import load_dotenv
 from pymongo import MongoClient
+from pymongo.collection import Collection
 from pymongo.database import Database
 
 load_dotenv()
@@ -16,8 +17,11 @@ class MongoConnection:
         self.db: Database = self.client.get_default_database()
 
     def ensure_users_collection(self) -> None:
-        if "users" not in self.db.list_collection_names():
-            self.db.create_collection("users")
+        users = self.get_users_collection()
+        users.create_index("email", unique=True)
+
+    def get_users_collection(self) -> Collection:
+        return self.db["users"]
 
 
 def get_mongo_connection() -> MongoConnection:

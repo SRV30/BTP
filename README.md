@@ -1,19 +1,26 @@
-# MoodSense AI - Version 1
+# MoodSense AI - Version 2
 
-## What this version does
-MoodSense AI V1 provides a foundational backend service with:
+## What Version 2 adds
+MoodSense AI V2 keeps all Version 1 functionality and adds a complete JWT-based authentication module.
 
-- A FastAPI application with basic health and dataset endpoints.
-- Dataset loading from `data/data.csv` using `pandas`.
-- MongoDB Atlas connectivity via `.env` using `MONGO_URI`.
-- Automatic creation of a `users` collection at startup (empty for now).
+### Existing (still supported)
+- `GET /health` returns service health.
+- `GET /sample` returns the first 10 rows from `data/data.csv` using pandas.
+
+### New in Version 2
+- User signup with hashed password storage.
+- User login with JWT generation.
+- Protected route to fetch current authenticated user.
+- MongoDB `users` collection with a unique index on `email`.
 
 ## Tech stack
 - **Python**
-- **FastAPI** (REST API)
-- **pandas** (dataset loading and sampling)
-- **MongoDB Atlas** with **pymongo**
-- **python-dotenv** for environment variable loading
+- **FastAPI**
+- **MongoDB Atlas** (`pymongo`)
+- **pandas**
+- **bcrypt** (password hashing)
+- **python-jose** (JWT creation/validation)
+- **python-dotenv**
 
 ## Project structure
 
@@ -26,15 +33,42 @@ backend/
     routes/
       __init__.py
       core.py
+    auth/
+      __init__.py
+      routes.py
+      utils.py
+      dependencies.py
+    models/
+      __init__.py
+      user.py
+    schemas/
+      __init__.py
+      auth.py
 data/
   data.csv
 requirements.txt
 .env
 ```
 
+## Environment variables
+Set these in `.env`:
+
+```env
+MONGO_URI=mongodb+srv://<username>:<password>@<cluster-url>/moodsense?retryWrites=true&w=majority
+JWT_SECRET=your_secret_key
+```
+
+## How authentication works (JWT flow)
+1. **Signup** (`POST /auth/signup`): stores user with hashed password.
+2. **Login** (`POST /auth/login`): validates credentials and returns JWT token.
+3. **Protected access** (`GET /auth/me`): requires `Authorization: Bearer <token>`.
+4. Token settings:
+   - Algorithm: `HS256`
+   - Expiry: `24 hours`
+
 ## How to run
 
-### 1) Create and activate a virtual environment
+### 1) Create and activate virtual environment
 
 ```bash
 python -m venv .venv
@@ -42,53 +76,65 @@ source .venv/bin/activate      # macOS/Linux
 # .venv\Scripts\activate      # Windows PowerShell
 ```
 
-### 2) Install requirements
+### 2) Install dependencies
 
 ```bash
 pip install -r requirements.txt
 ```
 
-### 3) Configure environment variables
-
-Open `.env` and set your MongoDB Atlas URI:
-
-```env
-MONGO_URI=mongodb+srv://<username>:<password>@<cluster-url>/moodsense?retryWrites=true&w=majority
-```
-
-### 4) Run FastAPI
+### 3) Run FastAPI
 
 ```bash
 uvicorn backend.app.main:app --reload
 ```
 
-The API will start at: `http://127.0.0.1:8000`
+App URL: `http://127.0.0.1:8000`
+Docs URL: `http://127.0.0.1:8000/docs`
 
-## How to test APIs
+## API testing
 
-### Swagger UI
-Open:
+### Core APIs (backward compatibility)
 
-- `http://127.0.0.1:8000/docs`
-
-### Endpoints
-
-1. **Health check**
-
+#### Health
 ```bash
 curl http://127.0.0.1:8000/health
 ```
 
-Expected response:
-
-```json
-{"status":"OK"}
-```
-
-2. **Dataset sample (first 10 rows)**
-
+#### Dataset sample
 ```bash
 curl http://127.0.0.1:8000/sample
 ```
 
-Expected response: JSON array with up to 10 objects from `data/data.csv`.
+### Auth APIs
+
+#### Signup
+```bash
+curl -X POST http://127.0.0.1:8000/auth/signup \
+  -H "Content-Type: application/json" \
+  -d '{"email":"user@gmail.com","password":"password123"}'
+```
+
+#### Login
+```bash
+curl -X POST http://127.0.0.1:8000/auth/login \
+  -H "Content-Type: application/json" \
+  -d '{"email":"user@gmail.com","password":"password123"}'
+```
+
+#### Access protected route
+```bash
+curl http://127.0.0.1:8000/auth/me \
+  -H "Authorization: Bearer <YOUR_TOKEN>"
+```
+
+## Testing with Swagger UI
+1. Open `/docs`.
+2. Run `POST /auth/login` and copy `access_token`.
+3. Click **Authorize**.
+4. Paste: `Bearer <token>`.
+5. Call `GET /auth/me`.
+
+## Error handling
+- Duplicate email on signup → `400`
+- Invalid login credentials → `401`
+- Invalid/missing token on protected route → `401`
