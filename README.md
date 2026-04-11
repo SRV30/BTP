@@ -89,3 +89,7 @@ uvicorn backend.app.main:app --reload
 ```
 
 Docs: `http://127.0.0.1:8000/docs`
+
+## Dependency behavior
+- Core APIs still boot even if `scikit-learn` is not installed.
+- In that case, startup skips model training and `GET /predict-next-day` returns HTTP 503 with an install hint.

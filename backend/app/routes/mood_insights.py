@@ -1,11 +1,11 @@
 from datetime import datetime, timedelta, timezone
 from typing import Any
 
-from fastapi import APIRouter, Depends
+from fastapi import APIRouter, Depends, HTTPException
 
 from ..auth.dependencies import get_current_user
 from ..db import get_mongo_connection
-from ..ml_pipeline import load_or_train_model
+from ..ml_pipeline import MLDependencyError, load_or_train_model
 
 router = APIRouter(tags=["Mood Insights"])
 
@@ -112,7 +112,10 @@ async def predict_next_day(current_user: dict = Depends(get_current_user)) -> di
             "predicted_mood": None,
         }
 
-    predictor = load_or_train_model()
+    try:
+        predictor = load_or_train_model()
+    except MLDependencyError as exc:
+        raise HTTPException(status_code=503, detail=str(exc)) from exc
     prediction = predictor.predict(
         screen_time=float(latest_log.get("screen_time", 0.0)),
         steps=int(latest_log.get("steps", 0)),

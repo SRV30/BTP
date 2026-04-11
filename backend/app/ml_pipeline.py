@@ -6,9 +6,6 @@ from pathlib import Path
 from typing import Any
 
 import pandas as pd
-from sklearn.ensemble import RandomForestClassifier, RandomForestRegressor
-from sklearn.metrics import accuracy_score
-from sklearn.model_selection import train_test_split
 
 FEATURE_COLUMNS = ["screen_time", "steps", "sleep", "streak"]
 EMOTION_COLUMNS = ["Joy", "Sadness", "Fear", "Anger", "Disgust", "Neutral"]
@@ -17,8 +14,19 @@ DATA_PATH = Path(__file__).resolve().parents[2] / "data" / "data.csv"
 MODEL_PATH = Path(__file__).resolve().parent / "model.pkl"
 
 
+class MLDependencyError(RuntimeError):
+    """Raised when optional ML dependencies are not available."""
+
+
 class MoodPredictor:
     def __init__(self) -> None:
+        try:
+            from sklearn.ensemble import RandomForestClassifier, RandomForestRegressor
+        except ModuleNotFoundError as exc:
+            raise MLDependencyError(
+                "Missing optional dependency 'scikit-learn'. Install requirements.txt to use ML features."
+            ) from exc
+
         self.regressor = RandomForestRegressor(n_estimators=300, random_state=42)
         self.classifier = RandomForestClassifier(n_estimators=300, random_state=42)
 
@@ -52,12 +60,20 @@ def _load_dataset() -> pd.DataFrame:
 
 
 def train_model_and_report() -> dict[str, float]:
+    try:
+        from sklearn.metrics import accuracy_score
+        from sklearn.model_selection import train_test_split
+    except ModuleNotFoundError as exc:
+        raise MLDependencyError(
+            "Missing optional dependency 'scikit-learn'. Install requirements.txt to train ML model."
+        ) from exc
+
     dataset = _load_dataset()
     features = dataset[FEATURE_COLUMNS]
     emotion_targets = dataset[EMOTION_COLUMNS]
     mood_targets = dataset["mood"]
 
-    x_train, x_test, y_train_emotions, y_test_emotions, y_train_mood, y_test_mood = train_test_split(
+    x_train, x_test, y_train_emotions, _y_test_emotions, y_train_mood, y_test_mood = train_test_split(
         features,
         emotion_targets,
         mood_targets,
