@@ -1,84 +1,55 @@
-# MoodSense AI - Version 5
+# MoodSense AI - Version 6
 
-## What Version 5 adds
-Version 5 upgrades Version 4 with an end-to-end ML prediction pipeline:
+## What Version 6 adds
+Version 6 upgrades Version 5 with a personalized agent endpoint:
 
-- Train a **RandomForest** ML model from `data/data.csv`
-- Persist model to pickle at `backend/app/model.pkl`
-- Add authenticated API: `GET /predict-next-day`
-- Return:
-  - `predicted_emotions`
-  - `predicted_mood`
+- `GET /ai-insights` (authenticated)
+- Uses user-specific:
+  - last 7 days data
+  - last 30 days data
+  - current mood (today)
+- Returns:
+  - `emotional_assessment`
+  - `recommendations`
 
-Existing APIs from Version 4 are still available.
+Version 5 ML endpoint (`GET /predict-next-day`) remains available.
 
-## ML model used
-Version 5 uses two RandomForest models trained on the same features:
+## Agent logic
+The agent computes a personalized routine profile from recent user logs:
 
-- `RandomForestRegressor` for multi-output emotion prediction (`Joy`, `Sadness`, `Fear`, `Anger`, `Disgust`, `Neutral`)
-- `RandomForestClassifier` for mood class prediction (`mood`)
+1. Pulls the user's last 7-day and 30-day logs.
+2. Uses latest available baseline (7-day preferred, else 30-day).
+3. Calculates averages:
+   - `screen_time`
+   - `sleep`
+   - `steps`
+4. Detects dominant recent mood + merges with current mood signal.
+5. Builds dynamic recommendations with explicit rules:
+   - **Screen high (`> 6h/day`) → suggest reduction**
+   - **Sleep low (`< 7h/night`) → suggest improvement**
+   - **Steps low (`< 7000/day`) → suggest activity**
 
-Input features:
+## Personalization concept (different output per user)
+`/ai-insights` is user-specific because it is built from each authenticated user’s own stored logs and mood history.
 
-- `screen_time`
-- `steps`
-- `sleep`
-- `streak`
+Different users with different averages and mood trends receive different:
+- assessments (mood pattern + routine summary)
+- recommendations (only triggered for that user’s weak areas)
 
-## Training steps
-1. Load `data/data.csv`
-2. Parse `top_emotions` JSON-like string into six numeric emotion targets
-3. Build feature matrix from `screen_time`, `steps`, `sleep`, `streak`
-4. Split data using `train_test_split(test_size=0.2, random_state=42)`
-5. Train regressor + classifier
-6. Compute classification accuracy on mood (`accuracy_score`)
-7. Save trained predictor to pickle (`backend/app/model.pkl`)
+So two users with the same current mood can still receive different guidance if their sleep/steps/screen patterns differ.
 
-Training runs automatically on app startup (`startup_event`) and can also happen on-demand when the prediction endpoint is called and no saved model exists.
+## Existing Version 5 ML features
+Version 5 ML pipeline is preserved:
 
-## Accuracy
-- Metric used: **Mood classification accuracy**
-- Computation: `accuracy_score(y_test_mood, model.predict(X_test))`
-- Returned by training utility: `train_model_and_report()` as `mood_accuracy`
+- RandomForestRegressor for emotion prediction
+- RandomForestClassifier for mood prediction
+- Training from `data/data.csv`
+- Pickle persistence at `backend/app/model.pkl`
+- Prediction API: `GET /predict-next-day`
 
-> Note: Accuracy value depends on dataset contents and train/test split in your environment. With the default split (`random_state=42`), the value is deterministic for the same input file.
-
-## New API
-
-### `GET /predict-next-day`
-Requires JWT bearer token.
-
-Behavior:
-- Reads the authenticated user's most recent daily log from MongoDB
-- Uses that latest record's lifestyle features as model input
-- Returns predicted next-day emotions and mood
-
-Example response:
-
-```json
-{
-  "based_on_date": "2025-12-31",
-  "predicted_emotions": {
-    "Joy": 74.83,
-    "Sadness": 22.61,
-    "Fear": 31.90,
-    "Anger": 28.11,
-    "Disgust": 24.77,
-    "Neutral": 68.54
-  },
-  "predicted_mood": "Joy"
-}
-```
-
-If user has no logs:
-
-```json
-{
-  "message": "No historical logs found. Add at least one log to predict the next day.",
-  "predicted_emotions": {},
-  "predicted_mood": null
-}
-```
+## Dependency behavior
+- Core APIs still boot even if `scikit-learn` is not installed.
+- In that case, startup skips model training and `GET /predict-next-day` returns HTTP 503 with an install hint.
 
 ## Run locally
 ```bash
@@ -89,7 +60,3 @@ uvicorn backend.app.main:app --reload
 ```
 
 Docs: `http://127.0.0.1:8000/docs`
-
-## Dependency behavior
-- Core APIs still boot even if `scikit-learn` is not installed.
-- In that case, startup skips model training and `GET /predict-next-day` returns HTTP 503 with an install hint.
