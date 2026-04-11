@@ -5,6 +5,7 @@ from fastapi import APIRouter, Depends
 
 from ..auth.dependencies import get_current_user
 from ..db import get_mongo_connection
+from ..ml_pipeline import load_or_train_model
 
 router = APIRouter(tags=["Mood Insights"])
 
@@ -90,4 +91,36 @@ async def today_mood(current_user: dict = Depends(get_current_user)) -> dict[str
         "date": doc.get("date"),
         "mood": doc.get("mood"),
         "top_emotions": top_emotions,
+    }
+
+
+@router.get("/predict-next-day")
+async def predict_next_day(current_user: dict = Depends(get_current_user)) -> dict[str, Any]:
+    user_id = str(current_user.get("_id"))
+
+    mongo = get_mongo_connection()
+    latest_log = mongo.get_daily_logs_collection().find_one(
+        {"user_id": user_id},
+        {"_id": 0, "screen_time": 1, "steps": 1, "sleep": 1, "streak": 1, "date": 1},
+        sort=[("date", -1)],
+    )
+
+    if not latest_log:
+        return {
+            "message": "No historical logs found. Add at least one log to predict the next day.",
+            "predicted_emotions": {},
+            "predicted_mood": None,
+        }
+
+    predictor = load_or_train_model()
+    prediction = predictor.predict(
+        screen_time=float(latest_log.get("screen_time", 0.0)),
+        steps=int(latest_log.get("steps", 0)),
+        sleep=float(latest_log.get("sleep", 0.0)),
+        streak=int(latest_log.get("streak", 0)),
+    )
+
+    return {
+        "based_on_date": latest_log.get("date"),
+        **prediction,
     }
