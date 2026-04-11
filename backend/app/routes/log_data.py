@@ -21,9 +21,10 @@ async def log_data(payload: LogDataRequest, current_user: dict = Depends(get_cur
     )
     mood = determine_mood(emotions)
     today = datetime.now(timezone.utc).date()
+    user_id = str(current_user.get("_id"))
 
     daily_log = build_daily_log_document(
-        user_id=str(current_user.get("_id")),
+        user_id=user_id,
         log_date=today,
         screen_time=payload.screen_time,
         steps=payload.steps,
@@ -34,7 +35,11 @@ async def log_data(payload: LogDataRequest, current_user: dict = Depends(get_cur
     )
 
     mongo = get_mongo_connection()
-    mongo.get_daily_logs_collection().insert_one(daily_log)
+    mongo.get_daily_logs_collection().update_one(
+        {"user_id": user_id, "date": today.isoformat()},
+        {"$set": daily_log},
+        upsert=True,
+    )
 
     return LogDataResponse(
         message="Daily log saved successfully",

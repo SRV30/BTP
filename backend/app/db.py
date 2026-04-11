@@ -22,7 +22,7 @@ class MongoConnection:
 
     def ensure_daily_logs_collection(self) -> None:
         daily_logs = self.get_daily_logs_collection()
-        daily_logs.create_index([("user_id", 1), ("date", -1)])
+        daily_logs.create_index([("user_id", 1), ("date", -1)], unique=True)
 
     def get_users_collection(self) -> Collection:
         return self.db["users"]

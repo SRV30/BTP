@@ -1,17 +1,22 @@
-# MoodSense AI - Version 3
+# MoodSense AI - Version 4
 
-## What Version 3 adds
-Version 3 keeps all Version 2 authentication and Version 1 core endpoints, and adds a mood logging engine.
+## What Version 4 adds
+Version 4 extends Version 3 by adding mood trend insight APIs for weekly/monthly analysis and a quick today summary.
 
-### Backward-compatible endpoints
+### Existing APIs (kept working)
 - `GET /health`
 - `GET /sample`
 - `POST /auth/signup`
 - `POST /auth/login`
 - `GET /auth/me`
+- `POST /log-data`
 
-### New endpoint
-- `POST /log-data` (JWT protected)
+### New APIs
+- `GET /mood/7days`
+- `GET /mood/30days`
+- `GET /today`
+
+All mood insight endpoints require JWT Bearer authentication.
 
 ## Tech stack
 - Python + FastAPI
@@ -36,6 +41,7 @@ backend/
     routes/
       core.py
       log_data.py
+      mood_insights.py
     models/
       user.py
       daily_log.py
@@ -54,32 +60,21 @@ MONGO_URI=mongodb+srv://<username>:<password>@<cluster-url>/moodsense?retryWrite
 JWT_SECRET=your_secret_key
 ```
 
-## Mood engine (how it works)
-`POST /log-data` receives:
-- `screen_time` (hours)
-- `steps`
-- `sleep` (hours)
-- `streak` (days)
+## How mood engine and graphs are generated
+1. `POST /log-data` calculates six emotions (Joy, Sadness, Fear, Anger, Disgust, Neutral) from input signals (`screen_time`, `steps`, `sleep`, `streak`).
+2. `mood` is selected as the highest-scoring emotion.
+3. Data is upserted into `daily_logs` per user/day.
+4. `GET /mood/7days` and `GET /mood/30days` fetch date-sorted logs and convert emotion scores to percentages.
+5. Frontend graphing can directly plot:
+   - **X-axis:** `date`
+   - **Y-axis:** `emotion_percentages.<emotion_name>`
 
-The engine computes six emotion scores (0 to 1):
-- Joy
-- Sadness
-- Fear
-- Anger
-- Disgust
-- Neutral
+## Optimized query strategy
+- Index on `users.email` (unique).
+- Compound index on `daily_logs (user_id, date)` (unique) for fast range filtering and per-day upsert.
+- Projections are used in mood insight endpoints so only required fields are returned.
 
-The final `mood` is the emotion with the highest score.
-
-Heuristic summary:
-- More steps, better sleep, and stronger streak increase Joy.
-- High screen time + poor sleep increase Fear/Anger/Disgust.
-- Low activity and low sleep increase Sadness.
-- Balanced values increase Neutral.
-
-## Data storage model
-Logs are stored in MongoDB collection: `daily_logs`
-
+## Data storage model (`daily_logs`)
 Each document contains:
 - `user_id`
 - `date`
@@ -87,8 +82,8 @@ Each document contains:
 - `steps`
 - `sleep`
 - `streak`
-- `emotions` (object with 6 scores)
-- `mood` (top emotion)
+- `emotions` (object of 6 scores in 0..1)
+- `mood`
 
 ## Run locally
 ```bash
@@ -98,51 +93,77 @@ pip install -r requirements.txt
 uvicorn backend.app.main:app --reload
 ```
 
-Open docs: `http://127.0.0.1:8000/docs`
+Docs: `http://127.0.0.1:8000/docs`
 
-## Sample requests
+## Response formats
 
-### 1) Signup
-```bash
-curl -X POST http://127.0.0.1:8000/auth/signup \
-  -H "Content-Type: application/json" \
-  -d '{"email":"user@gmail.com","password":"password123"}'
+### `GET /mood/7days` and `GET /mood/30days`
+```json
+{
+  "range_days": 7,
+  "data": [
+    {
+      "date": "2026-04-10",
+      "emotion_percentages": {
+        "Joy": 71.25,
+        "Sadness": 24.16,
+        "Fear": 35.9,
+        "Anger": 32.4,
+        "Disgust": 28.75,
+        "Neutral": 80.44
+      },
+      "mood": "Neutral"
+    }
+  ]
+}
 ```
 
-### 2) Login
+### `GET /today`
+```json
+{
+  "date": "2026-04-11",
+  "mood": "Joy",
+  "top_emotions": [
+    {"emotion": "Joy", "percentage": 74.15},
+    {"emotion": "Neutral", "percentage": 70.80},
+    {"emotion": "Fear", "percentage": 32.70}
+  ]
+}
+```
+
+If no log exists for today:
+```json
+{
+  "date": "2026-04-11",
+  "mood": null,
+  "top_emotions": [],
+  "message": "No log found for today"
+}
+```
+
+## Example cURL
+
 ```bash
+# Login first and copy token
 curl -X POST http://127.0.0.1:8000/auth/login \
   -H "Content-Type: application/json" \
   -d '{"email":"user@gmail.com","password":"password123"}'
-```
 
-### 3) Log mood data (protected)
-```bash
+# Save today's signals
 curl -X POST http://127.0.0.1:8000/log-data \
   -H "Content-Type: application/json" \
   -H "Authorization: Bearer <YOUR_TOKEN>" \
   -d '{"screen_time":6.5,"steps":8200,"sleep":7.2,"streak":14}'
-```
 
-### Sample response (`/log-data`)
-```json
-{
-  "message": "Daily log saved successfully",
-  "mood": "Joy",
-  "emotions": {
-    "Joy": 0.7325,
-    "Sadness": 0.3117,
-    "Fear": 0.4025,
-    "Anger": 0.3513,
-    "Disgust": 0.2892,
-    "Neutral": 0.8012
-  },
-  "date": "2026-04-11"
-}
-```
+# Get last 7 days graph data
+curl http://127.0.0.1:8000/mood/7days \
+  -H "Authorization: Bearer <YOUR_TOKEN>"
 
-## Test in Swagger
-1. Open `/docs`.
-2. Login via `POST /auth/login`.
-3. Click **Authorize** and paste `Bearer <token>`.
-4. Execute `POST /log-data`.
+# Get last 30 days graph data
+curl http://127.0.0.1:8000/mood/30days \
+  -H "Authorization: Bearer <YOUR_TOKEN>"
+
+# Get today's mood summary
+curl http://127.0.0.1:8000/today \
+  -H "Authorization: Bearer <YOUR_TOKEN>"
+```
