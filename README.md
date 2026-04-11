@@ -1,49 +1,47 @@
-# MoodSense AI - Version 2
+# MoodSense AI - Version 3
 
-## What Version 2 adds
-MoodSense AI V2 keeps all Version 1 functionality and adds a complete JWT-based authentication module.
+## What Version 3 adds
+Version 3 keeps all Version 2 authentication and Version 1 core endpoints, and adds a mood logging engine.
 
-### Existing (still supported)
-- `GET /health` returns service health.
-- `GET /sample` returns the first 10 rows from `data/data.csv` using pandas.
+### Backward-compatible endpoints
+- `GET /health`
+- `GET /sample`
+- `POST /auth/signup`
+- `POST /auth/login`
+- `GET /auth/me`
 
-### New in Version 2
-- User signup with hashed password storage.
-- User login with JWT generation.
-- Protected route to fetch current authenticated user.
-- MongoDB `users` collection with a unique index on `email`.
+### New endpoint
+- `POST /log-data` (JWT protected)
 
 ## Tech stack
-- **Python**
-- **FastAPI**
-- **MongoDB Atlas** (`pymongo`)
-- **pandas**
-- **bcrypt** (password hashing)
-- **python-jose** (JWT creation/validation)
-- **python-dotenv**
+- Python + FastAPI
+- MongoDB Atlas (`pymongo`)
+- pandas
+- bcrypt
+- python-jose (JWT)
+- python-dotenv
 
 ## Project structure
 
 ```text
 backend/
   app/
-    __init__.py
     main.py
     db.py
-    routes/
-      __init__.py
-      core.py
+    mood_engine.py
     auth/
-      __init__.py
       routes.py
-      utils.py
       dependencies.py
+      utils.py
+    routes/
+      core.py
+      log_data.py
     models/
-      __init__.py
       user.py
+      daily_log.py
     schemas/
-      __init__.py
       auth.py
+      logs.py
 data/
   data.csv
 requirements.txt
@@ -51,90 +49,100 @@ requirements.txt
 ```
 
 ## Environment variables
-Set these in `.env`:
-
 ```env
 MONGO_URI=mongodb+srv://<username>:<password>@<cluster-url>/moodsense?retryWrites=true&w=majority
 JWT_SECRET=your_secret_key
 ```
 
-## How authentication works (JWT flow)
-1. **Signup** (`POST /auth/signup`): stores user with hashed password.
-2. **Login** (`POST /auth/login`): validates credentials and returns JWT token.
-3. **Protected access** (`GET /auth/me`): requires `Authorization: Bearer <token>`.
-4. Token settings:
-   - Algorithm: `HS256`
-   - Expiry: `24 hours`
+## Mood engine (how it works)
+`POST /log-data` receives:
+- `screen_time` (hours)
+- `steps`
+- `sleep` (hours)
+- `streak` (days)
 
-## How to run
+The engine computes six emotion scores (0 to 1):
+- Joy
+- Sadness
+- Fear
+- Anger
+- Disgust
+- Neutral
 
-### 1) Create and activate virtual environment
+The final `mood` is the emotion with the highest score.
 
+Heuristic summary:
+- More steps, better sleep, and stronger streak increase Joy.
+- High screen time + poor sleep increase Fear/Anger/Disgust.
+- Low activity and low sleep increase Sadness.
+- Balanced values increase Neutral.
+
+## Data storage model
+Logs are stored in MongoDB collection: `daily_logs`
+
+Each document contains:
+- `user_id`
+- `date`
+- `screen_time`
+- `steps`
+- `sleep`
+- `streak`
+- `emotions` (object with 6 scores)
+- `mood` (top emotion)
+
+## Run locally
 ```bash
 python -m venv .venv
-source .venv/bin/activate      # macOS/Linux
-# .venv\Scripts\activate      # Windows PowerShell
-```
-
-### 2) Install dependencies
-
-```bash
+source .venv/bin/activate
 pip install -r requirements.txt
-```
-
-### 3) Run FastAPI
-
-```bash
 uvicorn backend.app.main:app --reload
 ```
 
-App URL: `http://127.0.0.1:8000`
-Docs URL: `http://127.0.0.1:8000/docs`
+Open docs: `http://127.0.0.1:8000/docs`
 
-## API testing
+## Sample requests
 
-### Core APIs (backward compatibility)
-
-#### Health
-```bash
-curl http://127.0.0.1:8000/health
-```
-
-#### Dataset sample
-```bash
-curl http://127.0.0.1:8000/sample
-```
-
-### Auth APIs
-
-#### Signup
+### 1) Signup
 ```bash
 curl -X POST http://127.0.0.1:8000/auth/signup \
   -H "Content-Type: application/json" \
   -d '{"email":"user@gmail.com","password":"password123"}'
 ```
 
-#### Login
+### 2) Login
 ```bash
 curl -X POST http://127.0.0.1:8000/auth/login \
   -H "Content-Type: application/json" \
   -d '{"email":"user@gmail.com","password":"password123"}'
 ```
 
-#### Access protected route
+### 3) Log mood data (protected)
 ```bash
-curl http://127.0.0.1:8000/auth/me \
-  -H "Authorization: Bearer <YOUR_TOKEN>"
+curl -X POST http://127.0.0.1:8000/log-data \
+  -H "Content-Type: application/json" \
+  -H "Authorization: Bearer <YOUR_TOKEN>" \
+  -d '{"screen_time":6.5,"steps":8200,"sleep":7.2,"streak":14}'
 ```
 
-## Testing with Swagger UI
-1. Open `/docs`.
-2. Run `POST /auth/login` and copy `access_token`.
-3. Click **Authorize**.
-4. Paste: `Bearer <token>`.
-5. Call `GET /auth/me`.
+### Sample response (`/log-data`)
+```json
+{
+  "message": "Daily log saved successfully",
+  "mood": "Joy",
+  "emotions": {
+    "Joy": 0.7325,
+    "Sadness": 0.3117,
+    "Fear": 0.4025,
+    "Anger": 0.3513,
+    "Disgust": 0.2892,
+    "Neutral": 0.8012
+  },
+  "date": "2026-04-11"
+}
+```
 
-## Error handling
-- Duplicate email on signup → `400`
-- Invalid login credentials → `401`
-- Invalid/missing token on protected route → `401`
+## Test in Swagger
+1. Open `/docs`.
+2. Login via `POST /auth/login`.
+3. Click **Authorize** and paste `Bearer <token>`.
+4. Execute `POST /log-data`.

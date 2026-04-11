@@ -20,8 +20,15 @@ class MongoConnection:
         users = self.get_users_collection()
         users.create_index("email", unique=True)
 
+    def ensure_daily_logs_collection(self) -> None:
+        daily_logs = self.get_daily_logs_collection()
+        daily_logs.create_index([("user_id", 1), ("date", -1)])
+
     def get_users_collection(self) -> Collection:
         return self.db["users"]
+
+    def get_daily_logs_collection(self) -> Collection:
+        return self.db["daily_logs"]
 
 
 def get_mongo_connection() -> MongoConnection:
