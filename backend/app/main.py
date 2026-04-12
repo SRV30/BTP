@@ -10,7 +10,7 @@ from .routes.mood_insights import router as mood_insights_router
 from .routes.profile import router as profile_router
 from .scheduler import start_scheduler, stop_scheduler
 
-app = FastAPI(title="MoodSense AI", version="10A.0.0")
+app = FastAPI(title="MoodSense AI", version="10B.0.0")
 app.include_router(core_router)
 app.include_router(auth_router)
 app.include_router(log_data_router)
@@ -26,7 +26,7 @@ def startup_event() -> None:
     mongo.ensure_users_collection()
     mongo.ensure_daily_logs_collection()
     start_scheduler()
-    logger.info("Version 10A startup completed.")
+    logger.info("Version 10B startup completed.")
 
 
 @app.on_event("shutdown")

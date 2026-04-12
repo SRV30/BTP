@@ -1,77 +1,72 @@
-# MoodSense AI - Version 10A
+# MoodSense AI - Version 10B
 
-## What Version 10A adds
-Version 10A upgrades Version 9 by introducing **My Profile** management APIs.
+## What Version 10B adds
+Version 10B upgrades Version 10A with richer profile fields and smart personalization logic for mood prediction.
 
-### New profile APIs
-- `GET /profile`
-- `PUT /profile`
+## My Profile fields
+`GET /profile` and `PUT /profile` now support:
+- `name`
+- `email`
+- `profile_photo`
+- `phone_number`
+- `address`
+- `age`
+- `gender` (`male`, `female`, `other`)
+- `disability` (`true`/`false`)
+- `menstruation_cycle` (`true`/`false`, applicable when `gender=female`)
+- `cycle_days` (number of days, only when `menstruation_cycle=true`)
 
-## Profile structure
-The profile payload is stored in the user document and uses these fields:
-- `name` (string, optional)
-- `email` (email, required)
-- `profile_photo` (string, optional)
-- `phone_number` (string, optional)
-- `address` (string, optional)
+## Personalization logic
+Version 10B introduces profile-aware and history-aware logic:
 
-Example response from `GET /profile`:
+1. **Female + active cycle adjustment**
+   - If `gender=female` and `menstruation_cycle=true`, stress-linked emotions are boosted.
+   - This increases probability for stress-correlated outcomes (e.g., Sadness/Fear/Anger) in next-day prediction.
 
-```json
-{
-  "name": "Jane Doe",
-  "email": "jane@example.com",
-  "profile_photo": "https://example.com/avatar.jpg",
-  "phone_number": "+1-555-123-4567",
-  "address": "123 Main St, San Francisco, CA"
-}
-```
+2. **Disability-aware steps normalization**
+   - Daily emotion calculation normalizes steps against a lower step goal when `disability=true`.
+   - This avoids over-penalizing activity levels for users with accessibility constraints.
 
-## Profile update flow
-1. User authenticates and includes a Bearer token.
-2. User calls `PUT /profile` with one or more updatable fields.
-3. Server validates payload and rejects empty updates.
-4. Server updates only supplied fields in the user record.
-5. Server returns the refreshed profile.
-6. Updated values are visible in subsequent `GET /profile` calls.
+3. **Personal baseline comparison**
+   - Mood scoring compares today’s metrics with the user’s own recent history (screen time, sleep, and steps).
+   - Next-day prediction blends today’s emotions with recent emotional baseline to produce personalized probabilities.
 
-Example update request:
+## How profile affects mood prediction
+- `POST /log-data` uses profile attributes and personal baseline to compute current-day emotions.
+- `GET /predict-next-day` then applies:
+  - a history blend using personal emotional trend,
+  - and an additional cycle-based stress probability adjustment when applicable.
+- This means two users with the same raw inputs can receive different predictions based on profile context and personal history.
 
+## Example profile update
 ```bash
 curl -X PUT http://127.0.0.1:8000/profile \
   -H "Authorization: Bearer <ACCESS_TOKEN>" \
   -H "Content-Type: application/json" \
   -d '{
     "name": "Jane Doe",
-    "phone_number": "+1-555-123-4567",
-    "address": "123 Main St, San Francisco, CA"
+    "age": 29,
+    "gender": "female",
+    "disability": false,
+    "menstruation_cycle": true,
+    "cycle_days": 5
   }'
 ```
 
-## Existing Version 9 features
-- Secure password recovery APIs:
+## Existing APIs
+- Auth:
+  - `POST /auth/signup`
+  - `POST /auth/login`
   - `POST /auth/forgot-password`
   - `POST /auth/reset-password`
-- Smart deterministic `GET /predict-next-day` based on today’s top emotions.
-- `GET /ai-insights` for personalized recommendations.
-- APScheduler daily mood refresh jobs at:
-  - 12:05 AM UTC
-  - 6:15 AM UTC
-  - 12:30 PM UTC
-  - 6:45 PM UTC
-
-## Environment variables
-```env
-MONGO_URI=...
-JWT_SECRET=...
-
-# Optional for real email
-SMTP_HOST=smtp.gmail.com
-SMTP_PORT=587
-SMTP_USER=your_username
-SMTP_PASS=your_password
-SMTP_FROM=no-reply@yourapp.com
-```
+  - `GET /auth/me`
+- Logs and insights:
+  - `POST /log-data`
+  - `GET /mood/7days`
+  - `GET /mood/30days`
+  - `GET /today`
+  - `GET /predict-next-day`
+  - `GET /ai-insights`
 
 ## Run locally
 ```bash

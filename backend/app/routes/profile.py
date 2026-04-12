@@ -8,15 +8,25 @@ from ..schemas.profile import ProfileResponse, ProfileUpdateRequest
 router = APIRouter(prefix="/profile", tags=["Profile"])
 
 
+
+def _build_profile_response(user: dict) -> ProfileResponse:
+    return ProfileResponse(
+        name=user.get("name"),
+        email=user["email"],
+        profile_photo=user.get("profile_photo"),
+        phone_number=user.get("phone_number"),
+        address=user.get("address"),
+        age=user.get("age"),
+        gender=user.get("gender"),
+        disability=user.get("disability"),
+        menstruation_cycle=user.get("menstruation_cycle"),
+        cycle_days=user.get("cycle_days"),
+    )
+
+
 @router.get("", response_model=ProfileResponse)
 async def get_profile(current_user: dict = Depends(get_current_user)) -> ProfileResponse:
-    return ProfileResponse(
-        name=current_user.get("name"),
-        email=current_user["email"],
-        profile_photo=current_user.get("profile_photo"),
-        phone_number=current_user.get("phone_number"),
-        address=current_user.get("address"),
-    )
+    return _build_profile_response(current_user)
 
 
 @router.put("", response_model=ProfileResponse)
@@ -31,6 +41,13 @@ async def update_profile(
     if not update_data:
         raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="No fields provided for update")
 
+    if update_data.get("gender") and update_data["gender"] != "female":
+        update_data["menstruation_cycle"] = None
+        update_data["cycle_days"] = None
+
+    if update_data.get("menstruation_cycle") is False:
+        update_data["cycle_days"] = None
+
     try:
         users.update_one({"_id": current_user["_id"]}, {"$set": update_data})
     except DuplicateKeyError:
@@ -40,10 +57,4 @@ async def update_profile(
     if not updated_user:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Profile not found")
 
-    return ProfileResponse(
-        name=updated_user.get("name"),
-        email=updated_user["email"],
-        profile_photo=updated_user.get("profile_photo"),
-        phone_number=updated_user.get("phone_number"),
-        address=updated_user.get("address"),
-    )
+    return _build_profile_response(updated_user)
