@@ -1,11 +1,10 @@
 from datetime import datetime, timedelta, timezone
 from typing import Any
 
-from fastapi import APIRouter, Depends, HTTPException
+from fastapi import APIRouter, Depends
 
 from ..auth.dependencies import get_current_user
 from ..db import get_mongo_connection
-from ..ml_pipeline import MLDependencyError, load_or_train_model
 
 router = APIRouter(tags=["Mood Insights"])
 
@@ -168,36 +167,39 @@ async def today_mood(current_user: dict = Depends(get_current_user)) -> dict[str
 @router.get("/predict-next-day")
 async def predict_next_day(current_user: dict = Depends(get_current_user)) -> dict[str, Any]:
     user_id = str(current_user.get("_id"))
+    today = datetime.now(timezone.utc).date().isoformat()
 
     mongo = get_mongo_connection()
-    latest_log = mongo.get_daily_logs_collection().find_one(
-        {"user_id": user_id},
-        {"_id": 0, "screen_time": 1, "steps": 1, "sleep": 1, "streak": 1, "date": 1},
-        sort=[("date", -1)],
+    today_doc = mongo.get_daily_logs_collection().find_one(
+        {"user_id": user_id, "date": today},
+        {"_id": 0, "emotions": 1},
     )
 
-    if not latest_log:
+    if not today_doc or not today_doc.get("emotions"):
         return {
-            "message": "No historical logs found. Add at least one log to predict the next day.",
-            "predicted_emotions": {},
-            "predicted_mood": None,
+            "predictions": [],
+            "message": "No emotion data found for today. Log today's data first.",
         }
 
-    try:
-        predictor = load_or_train_model()
-    except MLDependencyError as exc:
-        raise HTTPException(status_code=503, detail=str(exc)) from exc
-    prediction = predictor.predict(
-        screen_time=float(latest_log.get("screen_time", 0.0)),
-        steps=int(latest_log.get("steps", 0)),
-        sleep=float(latest_log.get("sleep", 0.0)),
-        streak=int(latest_log.get("streak", 0)),
-    )
+    emotions = today_doc.get("emotions", {})
+    top_3 = sorted(emotions.items(), key=lambda item: float(item[1]), reverse=True)[:3]
+    total = sum(float(score) * 100 for _, score in top_3)
 
-    return {
-        "based_on_date": latest_log.get("date"),
-        **prediction,
-    }
+    if total <= 0:
+        return {
+            "predictions": [],
+            "message": "Today's top emotions are not sufficient to calculate probabilities.",
+        }
+
+    predictions = [
+        {
+            "emotion": emotion,
+            "probability": int((float(score) * 100 / total) * 100),
+        }
+        for emotion, score in top_3
+    ]
+
+    return {"predictions": predictions}
 
 
 @router.get("/ai-insights")

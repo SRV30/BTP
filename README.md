@@ -1,54 +1,87 @@
-# MoodSense AI - Version 7
+# MoodSense AI - Version 8
 
-## What Version 7 adds
-Version 7 upgrades Version 6 with reliable scheduled mood refresh jobs using **APScheduler**.
+## What Version 8 adds
+Version 8 upgrades Version 7 by replacing ML-based next-day prediction with a deterministic **Smart Prediction Logic** based on today's top emotions.
 
-### New scheduler behavior
-Jobs run daily at **UTC** times:
+### Updated API
+- `GET /predict-next-day`
+
+Response format:
+```json
+{
+  "predictions": [
+    {"emotion": "Neutral", "probability": 43},
+    {"emotion": "Joy", "probability": 34},
+    {"emotion": "Disgust", "probability": 21}
+  ]
+}
+```
+
+## Smart prediction logic (no ML)
+`/predict-next-day` now uses today's emotion profile from MongoDB:
+
+1. Read today's `emotions` for the authenticated user.
+2. Pick top 3 emotions by score.
+3. Convert each top emotion score into percentage scale.
+4. Compute `total = sum(top_3_percentages)`.
+5. Compute per-emotion probability:
+
+```text
+probability = int((emotion_percentage / total) * 100)
+```
+
+The output is a clean list of top-3 probabilities.
+
+## Why top emotions are used
+- Top emotions represent the strongest current emotional signals.
+- Limiting to top 3 avoids noisy low-signal emotions.
+- It gives a clear, interpretable probability distribution for next-day direction.
+- It is fully personalized because it uses **today's data for the current user**.
+
+## Sample calculation
+Given input:
+
+```json
+{
+  "top_emotions": [
+    {"emotion": "Neutral", "percentage": 81},
+    {"emotion": "Joy", "percentage": 64},
+    {"emotion": "Disgust", "percentage": 40.5}
+  ]
+}
+```
+
+Total:
+
+```text
+total = 81 + 64 + 40.5 = 185.5
+```
+
+Probabilities:
+
+```text
+Neutral = (81 / 185.5) * 100 = 43.66 -> 43
+Joy = (64 / 185.5) * 100 = 34.50 -> 34
+Disgust = (40.5 / 185.5) * 100 = 21.83 -> 21
+```
+
+## Scheduler setup (from Version 7)
+APScheduler remains active for reliable daily mood refresh at UTC times:
 - 12:05 AM
 - 6:15 AM
 - 12:30 PM
 - 6:45 PM
 
-At each run, the scheduler:
-1. Reads all users.
-2. Uses each user's latest known metrics (`screen_time`, `steps`, `sleep`, `streak`).
-3. Updates/creates today's log.
-4. Recalculates emotions + mood with the mood engine.
+At each run:
+- update/create today's data per user
+- recalculate mood and emotions
 
-This keeps today's data fresh even if a user has not manually logged new data yet.
-
-## Scheduler setup
-- Implemented in `backend/app/scheduler.py` using `BackgroundScheduler` + `CronTrigger`.
-- Started from FastAPI `startup` event.
-- Stopped cleanly on `shutdown` event.
-- Reliability settings:
-  - `coalesce=True`
-  - `max_instances=1`
-  - `misfire_grace_time=1800` (30 minutes)
-
-## How it runs
-- On app startup:
-  - DB indexes are ensured.
-  - ML model training is attempted (skipped gracefully if ML deps are missing).
-  - APScheduler starts and registers four daily jobs.
-- On every scheduled trigger:
-  - `update_today_data_and_recalculate_mood()` executes.
-  - It upserts one daily log per user for today and recalculates mood.
-- On app shutdown:
-  - Scheduler shuts down cleanly.
-
-## Existing Version 6 features
-- `GET /ai-insights` for personalized emotional assessment + recommendations.
-- `GET /predict-next-day` for ML-based mood/emotion prediction.
-- Dynamic recommendation rules in `ai-insights`:
-  - high screen time → reduction suggestion
-  - low sleep → sleep improvement
-  - low steps → activity suggestion
-
-## Dependency behavior
-- Core APIs still boot even if `scikit-learn` is not installed.
-- In that case, startup skips model training and `GET /predict-next-day` returns HTTP 503 with an install hint.
+## Existing endpoints
+- `GET /mood/7days`
+- `GET /mood/30days`
+- `GET /today`
+- `GET /ai-insights`
+- `GET /predict-next-day` (Smart Prediction Logic)
 
 ## Run locally
 ```bash
