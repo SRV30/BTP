@@ -1,4 +1,47 @@
-# MoodSense AI - Version 12
+# MoodSense AI - Version 13
+
+## What Version 13 adds
+Version 13 upgrades Version 12 by adding location-based provider search (mock data).
+
+## Location-based search
+New API:
+
+- `GET /location-search`
+
+Returns nearby:
+
+- psychiatrists
+- psychologists
+
+Within:
+
+- configurable radius from 50 km to 100 km
+
+### API usage
+Example request:
+
+`GET /location-search?latitude=37.7749&longitude=-122.4194&radius_km=75&provider_type=all`
+
+Query parameters:
+
+- `latitude` (required): decimal latitude (`-90` to `90`)
+- `longitude` (required): decimal longitude (`-180` to `180`)
+- `radius_km` (optional): search radius in km (`50` to `100`, default `50`)
+- `provider_type` (optional): `all`, `psychiatrist`, or `psychologist` (default `all`)
+
+Response fields:
+
+- `search_center`: request center coordinates
+- `radius_km`: applied search radius
+- `provider_type`: applied type filter
+- `results`: nearby provider list with `name`, `type`, `address`, and `distance_km`
+
+### Location logic
+- The current implementation uses **mock provider data** (no external API key required).
+- Distance is computed using the **Haversine formula** (great-circle distance on Earth).
+- Only providers with distance `<= radius_km` are returned.
+- Results are sorted from nearest to farthest.
+- Radius is intentionally constrained to the required 50-100 km range.
 
 ## What Version 12 adds
 Version 12 upgrades Version 11 by adding depression score analysis.
