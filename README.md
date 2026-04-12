@@ -1,87 +1,88 @@
-# MoodSense AI - Version 8
+# MoodSense AI - Version 9
 
-## What Version 8 adds
-Version 8 upgrades Version 7 by replacing ML-based next-day prediction with a deterministic **Smart Prediction Logic** based on today's top emotions.
+## What Version 9 adds
+Version 9 upgrades Version 8 with secure password recovery APIs.
 
-### Updated API
-- `GET /predict-next-day`
+### New auth APIs
+- `POST /auth/forgot-password`
+- `POST /auth/reset-password`
 
-Response format:
+## Password reset flow
+1. User submits email to `POST /auth/forgot-password`.
+2. Server generates a random reset token.
+3. Server stores only the **SHA-256 hash** of the token in DB + expiry timestamp.
+4. Token is sent via:
+   - SMTP email (if SMTP env vars are configured), or
+   - mock console output (`[MOCK-EMAIL]`) if SMTP is not configured.
+5. User submits token + new password to `POST /auth/reset-password`.
+6. Server verifies token hash and expiry.
+7. If valid, server hashes new password with bcrypt and updates user password.
+8. Reset token fields are deleted immediately after successful reset.
+
+## How token security works
+- Token is generated with `secrets.token_urlsafe(32)`.
+- Raw token is never stored in DB.
+- Stored value: `reset_token_hash`.
+- Expiry: `reset_token_expires_at` (default 30 minutes).
+- Invalid/expired token returns HTTP 400.
+- Passwords are always stored as bcrypt hashes.
+
+## How to test password reset APIs
+
+### 1) Request reset token
+```bash
+curl -X POST http://127.0.0.1:8000/auth/forgot-password \
+  -H "Content-Type: application/json" \
+  -d '{"email":"user@gmail.com"}'
+```
+
+Response:
 ```json
-{
-  "predictions": [
-    {"emotion": "Neutral", "probability": 43},
-    {"emotion": "Joy", "probability": 34},
-    {"emotion": "Disgust", "probability": 21}
-  ]
-}
+{"message":"If that email exists, a reset token has been sent"}
 ```
 
-## Smart prediction logic (no ML)
-`/predict-next-day` now uses today's emotion profile from MongoDB:
+> If SMTP is not set, copy token from backend logs (`[MOCK-EMAIL]`).
 
-1. Read today's `emotions` for the authenticated user.
-2. Pick top 3 emotions by score.
-3. Convert each top emotion score into percentage scale.
-4. Compute `total = sum(top_3_percentages)`.
-5. Compute per-emotion probability:
-
-```text
-probability = int((emotion_percentage / total) * 100)
+### 2) Reset password with token
+```bash
+curl -X POST http://127.0.0.1:8000/auth/reset-password \
+  -H "Content-Type: application/json" \
+  -d '{"token":"<TOKEN_FROM_EMAIL_OR_LOG>","new_password":"NewStrongPass123"}'
 ```
 
-The output is a clean list of top-3 probabilities.
-
-## Why top emotions are used
-- Top emotions represent the strongest current emotional signals.
-- Limiting to top 3 avoids noisy low-signal emotions.
-- It gives a clear, interpretable probability distribution for next-day direction.
-- It is fully personalized because it uses **today's data for the current user**.
-
-## Sample calculation
-Given input:
-
+Response:
 ```json
-{
-  "top_emotions": [
-    {"emotion": "Neutral", "percentage": 81},
-    {"emotion": "Joy", "percentage": 64},
-    {"emotion": "Disgust", "percentage": 40.5}
-  ]
-}
+{"message":"Password reset successful"}
 ```
 
-Total:
-
-```text
-total = 81 + 64 + 40.5 = 185.5
+### 3) Verify login with new password
+```bash
+curl -X POST http://127.0.0.1:8000/auth/login \
+  -H "Content-Type: application/json" \
+  -d '{"email":"user@gmail.com","password":"NewStrongPass123"}'
 ```
 
-Probabilities:
+## Existing Version 8 features
+- Smart deterministic `GET /predict-next-day` based on today’s top emotions.
+- `GET /ai-insights` for personalized recommendations.
+- APScheduler daily mood refresh jobs at:
+  - 12:05 AM UTC
+  - 6:15 AM UTC
+  - 12:30 PM UTC
+  - 6:45 PM UTC
 
-```text
-Neutral = (81 / 185.5) * 100 = 43.66 -> 43
-Joy = (64 / 185.5) * 100 = 34.50 -> 34
-Disgust = (40.5 / 185.5) * 100 = 21.83 -> 21
+## Environment variables
+```env
+MONGO_URI=...
+JWT_SECRET=...
+
+# Optional for real email
+SMTP_HOST=smtp.gmail.com
+SMTP_PORT=587
+SMTP_USER=your_username
+SMTP_PASS=your_password
+SMTP_FROM=no-reply@yourapp.com
 ```
-
-## Scheduler setup (from Version 7)
-APScheduler remains active for reliable daily mood refresh at UTC times:
-- 12:05 AM
-- 6:15 AM
-- 12:30 PM
-- 6:45 PM
-
-At each run:
-- update/create today's data per user
-- recalculate mood and emotions
-
-## Existing endpoints
-- `GET /mood/7days`
-- `GET /mood/30days`
-- `GET /today`
-- `GET /ai-insights`
-- `GET /predict-next-day` (Smart Prediction Logic)
 
 ## Run locally
 ```bash

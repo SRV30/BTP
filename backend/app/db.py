@@ -19,6 +19,7 @@ class MongoConnection:
     def ensure_users_collection(self) -> None:
         users = self.get_users_collection()
         users.create_index("email", unique=True)
+        users.create_index("reset_token_hash", sparse=True)
 
     def ensure_daily_logs_collection(self) -> None:
         daily_logs = self.get_daily_logs_collection()
