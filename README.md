@@ -1,88 +1,53 @@
-# MoodSense AI - Version 9
+# MoodSense AI - Version 11
 
-## What Version 9 adds
-Version 9 upgrades Version 8 with secure password recovery APIs.
+## What Version 11 adds
+Version 11 upgrades Version 10B by adding a user connection system with controlled mood sharing.
 
-### New auth APIs
-- `POST /auth/forgot-password`
-- `POST /auth/reset-password`
+## Connection system
+New APIs under `/connections`:
 
-## Password reset flow
-1. User submits email to `POST /auth/forgot-password`.
-2. Server generates a random reset token.
-3. Server stores only the **SHA-256 hash** of the token in DB + expiry timestamp.
-4. Token is sent via:
-   - SMTP email (if SMTP env vars are configured), or
-   - mock console output (`[MOCK-EMAIL]`) if SMTP is not configured.
-5. User submits token + new password to `POST /auth/reset-password`.
-6. Server verifies token hash and expiry.
-7. If valid, server hashes new password with bcrypt and updates user password.
-8. Reset token fields are deleted immediately after successful reset.
+1. **Search by email**
+   - `GET /connections/search?email=user@example.com`
+   - Returns whether the user exists and relationship state (`is_connected`, request pending, etc.).
 
-## How token security works
-- Token is generated with `secrets.token_urlsafe(32)`.
-- Raw token is never stored in DB.
-- Stored value: `reset_token_hash`.
-- Expiry: `reset_token_expires_at` (default 30 minutes).
-- Invalid/expired token returns HTTP 400.
-- Passwords are always stored as bcrypt hashes.
+2. **Send request**
+   - `POST /connections/request`
+   - Body:
+     ```json
+     { "email": "friend@example.com" }
+     ```
+   - Creates a pending connection request.
 
-## How to test password reset APIs
+3. **Accept/reject request**
+   - `POST /connections/request/respond`
+   - Body:
+     ```json
+     { "email": "friend@example.com", "action": "accept" }
+     ```
+   - `action` can be `accept` or `reject`.
 
-### 1) Request reset token
-```bash
-curl -X POST http://127.0.0.1:8000/auth/forgot-password \
-  -H "Content-Type: application/json" \
-  -d '{"email":"user@gmail.com"}'
-```
+4. **View connections + shared mood data**
+   - `GET /connections`
+   - For each accepted connection, returns:
+     - current mood
+     - last 7 days mood trend
+     - last 30 days mood trend
 
-Response:
-```json
-{"message":"If that email exists, a reset token has been sent"}
-```
+## Privacy considerations
+- Mood history is only visible through **accepted connections**.
+- Connection sharing is **opt-in**, requiring explicit request + acceptance.
+- Pending requests do not grant mood access.
+- Search is by exact email and only returns minimal profile context for discovery.
+- Users cannot send connection requests to themselves.
 
-> If SMTP is not set, copy token from backend logs (`[MOCK-EMAIL]`).
-
-### 2) Reset password with token
-```bash
-curl -X POST http://127.0.0.1:8000/auth/reset-password \
-  -H "Content-Type: application/json" \
-  -d '{"token":"<TOKEN_FROM_EMAIL_OR_LOG>","new_password":"NewStrongPass123"}'
-```
-
-Response:
-```json
-{"message":"Password reset successful"}
-```
-
-### 3) Verify login with new password
-```bash
-curl -X POST http://127.0.0.1:8000/auth/login \
-  -H "Content-Type: application/json" \
-  -d '{"email":"user@gmail.com","password":"NewStrongPass123"}'
-```
-
-## Existing Version 8 features
-- Smart deterministic `GET /predict-next-day` based on today’s top emotions.
-- `GET /ai-insights` for personalized recommendations.
-- APScheduler daily mood refresh jobs at:
-  - 12:05 AM UTC
-  - 6:15 AM UTC
-  - 12:30 PM UTC
-  - 6:45 PM UTC
-
-## Environment variables
-```env
-MONGO_URI=...
-JWT_SECRET=...
-
-# Optional for real email
-SMTP_HOST=smtp.gmail.com
-SMTP_PORT=587
-SMTP_USER=your_username
-SMTP_PASS=your_password
-SMTP_FROM=no-reply@yourapp.com
-```
+## Existing personalization (from Version 10B)
+- Profile-aware mood logic includes:
+  - disability-aware steps normalization,
+  - female-cycle stress adjustment,
+  - personal baseline comparison against user history.
+- Profile fields available in `GET /profile` and `PUT /profile`:
+  - `name`, `email`, `profile_photo`, `phone_number`, `address`
+  - `age`, `gender`, `disability`, `menstruation_cycle`, `cycle_days`
 
 ## Run locally
 ```bash
