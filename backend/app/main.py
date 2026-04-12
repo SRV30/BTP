@@ -1,6 +1,8 @@
 import logging
+import os
 
 from fastapi import FastAPI
+from fastapi.middleware.cors import CORSMiddleware
 
 from .auth.routes import router as auth_router
 from .db import get_mongo_connection
@@ -20,6 +22,20 @@ app.include_router(log_data_router)
 app.include_router(mood_insights_router)
 app.include_router(profile_router)
 app.include_router(location_search_router)
+
+allowed_origins = [
+    origin.strip()
+    for origin in os.getenv("CORS_ALLOW_ORIGINS", "http://localhost:5173,http://127.0.0.1:5173").split(",")
+    if origin.strip()
+]
+
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=allowed_origins,
+    allow_credentials=True,
+    allow_methods=["*"],
+    allow_headers=["*"],
+)
 
 logger = logging.getLogger(__name__)
 
