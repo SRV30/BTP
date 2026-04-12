@@ -1,68 +1,57 @@
-# MoodSense AI - Version 9
+# MoodSense AI - Version 10A
 
-## What Version 9 adds
-Version 9 upgrades Version 8 with secure password recovery APIs.
+## What Version 10A adds
+Version 10A upgrades Version 9 by introducing **My Profile** management APIs.
 
-### New auth APIs
-- `POST /auth/forgot-password`
-- `POST /auth/reset-password`
+### New profile APIs
+- `GET /profile`
+- `PUT /profile`
 
-## Password reset flow
-1. User submits email to `POST /auth/forgot-password`.
-2. Server generates a random reset token.
-3. Server stores only the **SHA-256 hash** of the token in DB + expiry timestamp.
-4. Token is sent via:
-   - SMTP email (if SMTP env vars are configured), or
-   - mock console output (`[MOCK-EMAIL]`) if SMTP is not configured.
-5. User submits token + new password to `POST /auth/reset-password`.
-6. Server verifies token hash and expiry.
-7. If valid, server hashes new password with bcrypt and updates user password.
-8. Reset token fields are deleted immediately after successful reset.
+## Profile structure
+The profile payload is stored in the user document and uses these fields:
+- `name` (string, optional)
+- `email` (email, required)
+- `profile_photo` (string, optional)
+- `phone_number` (string, optional)
+- `address` (string, optional)
 
-## How token security works
-- Token is generated with `secrets.token_urlsafe(32)`.
-- Raw token is never stored in DB.
-- Stored value: `reset_token_hash`.
-- Expiry: `reset_token_expires_at` (default 30 minutes).
-- Invalid/expired token returns HTTP 400.
-- Passwords are always stored as bcrypt hashes.
+Example response from `GET /profile`:
 
-## How to test password reset APIs
-
-### 1) Request reset token
-```bash
-curl -X POST http://127.0.0.1:8000/auth/forgot-password \
-  -H "Content-Type: application/json" \
-  -d '{"email":"user@gmail.com"}'
-```
-
-Response:
 ```json
-{"message":"If that email exists, a reset token has been sent"}
+{
+  "name": "Jane Doe",
+  "email": "jane@example.com",
+  "profile_photo": "https://example.com/avatar.jpg",
+  "phone_number": "+1-555-123-4567",
+  "address": "123 Main St, San Francisco, CA"
+}
 ```
 
-> If SMTP is not set, copy token from backend logs (`[MOCK-EMAIL]`).
+## Profile update flow
+1. User authenticates and includes a Bearer token.
+2. User calls `PUT /profile` with one or more updatable fields.
+3. Server validates payload and rejects empty updates.
+4. Server updates only supplied fields in the user record.
+5. Server returns the refreshed profile.
+6. Updated values are visible in subsequent `GET /profile` calls.
 
-### 2) Reset password with token
+Example update request:
+
 ```bash
-curl -X POST http://127.0.0.1:8000/auth/reset-password \
+curl -X PUT http://127.0.0.1:8000/profile \
+  -H "Authorization: Bearer <ACCESS_TOKEN>" \
   -H "Content-Type: application/json" \
-  -d '{"token":"<TOKEN_FROM_EMAIL_OR_LOG>","new_password":"NewStrongPass123"}'
+  -d '{
+    "name": "Jane Doe",
+    "phone_number": "+1-555-123-4567",
+    "address": "123 Main St, San Francisco, CA"
+  }'
 ```
 
-Response:
-```json
-{"message":"Password reset successful"}
-```
-
-### 3) Verify login with new password
-```bash
-curl -X POST http://127.0.0.1:8000/auth/login \
-  -H "Content-Type: application/json" \
-  -d '{"email":"user@gmail.com","password":"NewStrongPass123"}'
-```
-
-## Existing Version 8 features
+## Existing Version 9 features
+- Secure password recovery APIs:
+  - `POST /auth/forgot-password`
+  - `POST /auth/reset-password`
 - Smart deterministic `GET /predict-next-day` based on today’s top emotions.
 - `GET /ai-insights` for personalized recommendations.
 - APScheduler daily mood refresh jobs at:
