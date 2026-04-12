@@ -1,72 +1,53 @@
-# MoodSense AI - Version 10B
+# MoodSense AI - Version 11
 
-## What Version 10B adds
-Version 10B upgrades Version 10A with richer profile fields and smart personalization logic for mood prediction.
+## What Version 11 adds
+Version 11 upgrades Version 10B by adding a user connection system with controlled mood sharing.
 
-## My Profile fields
-`GET /profile` and `PUT /profile` now support:
-- `name`
-- `email`
-- `profile_photo`
-- `phone_number`
-- `address`
-- `age`
-- `gender` (`male`, `female`, `other`)
-- `disability` (`true`/`false`)
-- `menstruation_cycle` (`true`/`false`, applicable when `gender=female`)
-- `cycle_days` (number of days, only when `menstruation_cycle=true`)
+## Connection system
+New APIs under `/connections`:
 
-## Personalization logic
-Version 10B introduces profile-aware and history-aware logic:
+1. **Search by email**
+   - `GET /connections/search?email=user@example.com`
+   - Returns whether the user exists and relationship state (`is_connected`, request pending, etc.).
 
-1. **Female + active cycle adjustment**
-   - If `gender=female` and `menstruation_cycle=true`, stress-linked emotions are boosted.
-   - This increases probability for stress-correlated outcomes (e.g., Sadness/Fear/Anger) in next-day prediction.
+2. **Send request**
+   - `POST /connections/request`
+   - Body:
+     ```json
+     { "email": "friend@example.com" }
+     ```
+   - Creates a pending connection request.
 
-2. **Disability-aware steps normalization**
-   - Daily emotion calculation normalizes steps against a lower step goal when `disability=true`.
-   - This avoids over-penalizing activity levels for users with accessibility constraints.
+3. **Accept/reject request**
+   - `POST /connections/request/respond`
+   - Body:
+     ```json
+     { "email": "friend@example.com", "action": "accept" }
+     ```
+   - `action` can be `accept` or `reject`.
 
-3. **Personal baseline comparison**
-   - Mood scoring compares today’s metrics with the user’s own recent history (screen time, sleep, and steps).
-   - Next-day prediction blends today’s emotions with recent emotional baseline to produce personalized probabilities.
+4. **View connections + shared mood data**
+   - `GET /connections`
+   - For each accepted connection, returns:
+     - current mood
+     - last 7 days mood trend
+     - last 30 days mood trend
 
-## How profile affects mood prediction
-- `POST /log-data` uses profile attributes and personal baseline to compute current-day emotions.
-- `GET /predict-next-day` then applies:
-  - a history blend using personal emotional trend,
-  - and an additional cycle-based stress probability adjustment when applicable.
-- This means two users with the same raw inputs can receive different predictions based on profile context and personal history.
+## Privacy considerations
+- Mood history is only visible through **accepted connections**.
+- Connection sharing is **opt-in**, requiring explicit request + acceptance.
+- Pending requests do not grant mood access.
+- Search is by exact email and only returns minimal profile context for discovery.
+- Users cannot send connection requests to themselves.
 
-## Example profile update
-```bash
-curl -X PUT http://127.0.0.1:8000/profile \
-  -H "Authorization: Bearer <ACCESS_TOKEN>" \
-  -H "Content-Type: application/json" \
-  -d '{
-    "name": "Jane Doe",
-    "age": 29,
-    "gender": "female",
-    "disability": false,
-    "menstruation_cycle": true,
-    "cycle_days": 5
-  }'
-```
-
-## Existing APIs
-- Auth:
-  - `POST /auth/signup`
-  - `POST /auth/login`
-  - `POST /auth/forgot-password`
-  - `POST /auth/reset-password`
-  - `GET /auth/me`
-- Logs and insights:
-  - `POST /log-data`
-  - `GET /mood/7days`
-  - `GET /mood/30days`
-  - `GET /today`
-  - `GET /predict-next-day`
-  - `GET /ai-insights`
+## Existing personalization (from Version 10B)
+- Profile-aware mood logic includes:
+  - disability-aware steps normalization,
+  - female-cycle stress adjustment,
+  - personal baseline comparison against user history.
+- Profile fields available in `GET /profile` and `PUT /profile`:
+  - `name`, `email`, `profile_photo`, `phone_number`, `address`
+  - `age`, `gender`, `disability`, `menstruation_cycle`, `cycle_days`
 
 ## Run locally
 ```bash
