@@ -9,6 +9,62 @@ from ..db import get_mongo_connection
 router = APIRouter(tags=["Mood Insights"])
 
 
+def _severity_from_percentage(score: float) -> str:
+    if score < 35:
+        return "low"
+    if score < 65:
+        return "moderate"
+    return "high"
+
+
+def _calculate_depression_score(logs: list[dict[str, Any]]) -> dict[str, Any]:
+    if not logs:
+        return {"percentage": 0.0, "severity": "low"}
+
+    sadness_values = [float((day.get("emotion_percentages") or {}).get("Sadness", 0.0)) / 100.0 for day in logs]
+    sleep_values = [float(day.get("sleep", 0.0)) for day in logs]
+    steps_values = [float(day.get("steps", 0.0)) for day in logs]
+
+    midpoint = max(1, len(sadness_values) // 2)
+    earlier_window = sadness_values[:midpoint]
+    recent_window = sadness_values[midpoint:]
+    earlier_avg = sum(earlier_window) / len(earlier_window)
+    recent_avg = sum(recent_window) / len(recent_window) if recent_window else sadness_values[-1]
+    sadness_trend = max(0.0, min(1.0, recent_avg - earlier_avg + 0.5))
+
+    avg_sleep = sum(sleep_values) / len(sleep_values)
+    sleep_deficit = max(0.0, min(1.0, (8.0 - avg_sleep) / 8.0))
+
+    avg_steps = sum(steps_values) / len(steps_values)
+    low_activity = max(0.0, min(1.0, (7000.0 - avg_steps) / 7000.0))
+
+    high_stress_streak_days = 0
+    for day in reversed(logs):
+        emotions = day.get("emotion_percentages") or {}
+        sadness = float(emotions.get("Sadness", 0.0))
+        fear = float(emotions.get("Fear", 0.0))
+        anger = float(emotions.get("Anger", 0.0))
+        stress_avg = (sadness + fear + anger) / 3.0
+        if stress_avg >= 60.0:
+            high_stress_streak_days += 1
+        else:
+            break
+    high_stress_streak = max(0.0, min(1.0, high_stress_streak_days / 7.0))
+
+    weighted_score = (
+        0.35 * sadness_trend
+        + 0.25 * sleep_deficit
+        + 0.20 * low_activity
+        + 0.20 * high_stress_streak
+    )
+    percentage = round(weighted_score * 100.0, 2)
+
+    return {
+        "percentage": percentage,
+        "severity": _severity_from_percentage(percentage),
+    }
+
+
 async def _get_mood_history(user_id: str, days: int) -> list[dict[str, Any]]:
     end_date = datetime.now(timezone.utc).date()
     start_date = end_date - timedelta(days=days - 1)
@@ -264,3 +320,10 @@ async def ai_insights(current_user: dict = Depends(get_current_user)) -> dict[st
         },
         **insights,
     }
+
+
+@router.get("/depression-analysis")
+async def depression_analysis(current_user: dict = Depends(get_current_user)) -> dict[str, Any]:
+    user_id = str(current_user.get("_id"))
+    recent_logs = await _get_mood_history(user_id=user_id, days=14)
+    return _calculate_depression_score(recent_logs)

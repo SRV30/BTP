@@ -1,7 +1,45 @@
-# MoodSense AI - Version 11
+# MoodSense AI - Version 12
+
+## What Version 12 adds
+Version 12 upgrades Version 11 by adding depression score analysis.
+
+## Depression analysis
+New API:
+
+- `GET /depression-analysis`
+
+Returns:
+
+- `percentage` (0-100)
+- `severity` (`low`, `moderate`, `high`)
+
+### How depression score is calculated
+The score uses the last 14 days of logs and combines four factors:
+
+1. **Sadness trend** (35% weight)
+   - Compares average sadness in the first half vs second half of the 14-day window.
+   - Higher recent sadness contributes to a higher score.
+2. **Sleep deficit** (25% weight)
+   - Uses how far the user's average sleep is below 8 hours.
+3. **Low activity** (20% weight)
+   - Uses how far the user's average daily steps are below 7000.
+4. **High stress streak** (20% weight)
+   - Counts consecutive recent days where mean(`Sadness`, `Fear`, `Anger`) is at least 60%.
+   - Normalized over 7 days.
+
+Final formula:
+
+`score = 0.35*sadness_trend + 0.25*sleep_deficit + 0.20*low_activity + 0.20*high_stress_streak`
+
+`percentage = score * 100`
+
+### Severity thresholds
+- `low`: percentage < 35
+- `moderate`: 35 <= percentage < 65
+- `high`: percentage >= 65
 
 ## What Version 11 adds
-Version 11 upgrades Version 10B by adding a user connection system with controlled mood sharing.
+Version 11 upgraded Version 10B by adding a user connection system with controlled mood sharing.
 
 ## Connection system
 New APIs under `/connections`:
