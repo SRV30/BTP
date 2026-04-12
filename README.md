@@ -1,136 +1,20 @@
 # MoodSense AI - Version 13
 
-## What Version 13 adds
-Version 13 upgrades Version 12 by adding location-based provider search (mock data).
+MoodSense AI now includes a full React frontend and FastAPI backend integration for end-to-end mental wellness tracking.
 
-## Location-based search
-New API:
+## Features in the frontend
+- Authentication (signup/login)
+- Dashboard with daily log submission
+- Prediction view (next-day emotion probabilities)
+- AI insights view
+- Profile management
+- Connections management
+- Depression analysis
+- Nearby doctor search (psychiatrists + psychologists)
 
-- `GET /location-search`
+## Full setup
 
-Returns nearby:
-
-- psychiatrists
-- psychologists
-
-Within:
-
-- configurable radius from 50 km to 100 km
-
-### API usage
-Example request:
-
-`GET /location-search?latitude=37.7749&longitude=-122.4194&radius_km=75&provider_type=all`
-
-Query parameters:
-
-- `latitude` (required): decimal latitude (`-90` to `90`)
-- `longitude` (required): decimal longitude (`-180` to `180`)
-- `radius_km` (optional): search radius in km (`50` to `100`, default `50`)
-- `provider_type` (optional): `all`, `psychiatrist`, or `psychologist` (default `all`)
-
-Response fields:
-
-- `search_center`: request center coordinates
-- `radius_km`: applied search radius
-- `provider_type`: applied type filter
-- `results`: nearby provider list with `name`, `type`, `address`, and `distance_km`
-
-### Location logic
-- The current implementation uses **mock provider data** (no external API key required).
-- Distance is computed using the **Haversine formula** (great-circle distance on Earth).
-- Only providers with distance `<= radius_km` are returned.
-- Results are sorted from nearest to farthest.
-- Radius is intentionally constrained to the required 50-100 km range.
-
-## What Version 12 adds
-Version 12 upgrades Version 11 by adding depression score analysis.
-
-## Depression analysis
-New API:
-
-- `GET /depression-analysis`
-
-Returns:
-
-- `percentage` (0-100)
-- `severity` (`low`, `moderate`, `high`)
-
-### How depression score is calculated
-The score uses the last 14 days of logs and combines four factors:
-
-1. **Sadness trend** (35% weight)
-   - Compares average sadness in the first half vs second half of the 14-day window.
-   - Higher recent sadness contributes to a higher score.
-2. **Sleep deficit** (25% weight)
-   - Uses how far the user's average sleep is below 8 hours.
-3. **Low activity** (20% weight)
-   - Uses how far the user's average daily steps are below 7000.
-4. **High stress streak** (20% weight)
-   - Counts consecutive recent days where mean(`Sadness`, `Fear`, `Anger`) is at least 60%.
-   - Normalized over 7 days.
-
-Final formula:
-
-`score = 0.35*sadness_trend + 0.25*sleep_deficit + 0.20*low_activity + 0.20*high_stress_streak`
-
-`percentage = score * 100`
-
-### Severity thresholds
-- `low`: percentage < 35
-- `moderate`: 35 <= percentage < 65
-- `high`: percentage >= 65
-
-## What Version 11 adds
-Version 11 upgraded Version 10B by adding a user connection system with controlled mood sharing.
-
-## Connection system
-New APIs under `/connections`:
-
-1. **Search by email**
-   - `GET /connections/search?email=user@example.com`
-   - Returns whether the user exists and relationship state (`is_connected`, request pending, etc.).
-
-2. **Send request**
-   - `POST /connections/request`
-   - Body:
-     ```json
-     { "email": "friend@example.com" }
-     ```
-   - Creates a pending connection request.
-
-3. **Accept/reject request**
-   - `POST /connections/request/respond`
-   - Body:
-     ```json
-     { "email": "friend@example.com", "action": "accept" }
-     ```
-   - `action` can be `accept` or `reject`.
-
-4. **View connections + shared mood data**
-   - `GET /connections`
-   - For each accepted connection, returns:
-     - current mood
-     - last 7 days mood trend
-     - last 30 days mood trend
-
-## Privacy considerations
-- Mood history is only visible through **accepted connections**.
-- Connection sharing is **opt-in**, requiring explicit request + acceptance.
-- Pending requests do not grant mood access.
-- Search is by exact email and only returns minimal profile context for discovery.
-- Users cannot send connection requests to themselves.
-
-## Existing personalization (from Version 10B)
-- Profile-aware mood logic includes:
-  - disability-aware steps normalization,
-  - female-cycle stress adjustment,
-  - personal baseline comparison against user history.
-- Profile fields available in `GET /profile` and `PUT /profile`:
-  - `name`, `email`, `profile_photo`, `phone_number`, `address`
-  - `age`, `gender`, `disability`, `menstruation_cycle`, `cycle_days`
-
-## Run locally
+### 1) Backend
 ```bash
 python -m venv .venv
 source .venv/bin/activate
@@ -138,4 +22,79 @@ pip install -r requirements.txt
 uvicorn backend.app.main:app --reload
 ```
 
-Docs: `http://127.0.0.1:8000/docs`
+Backend runs at: `http://127.0.0.1:8000`
+
+### 2) Frontend
+```bash
+cd frontend
+npm install
+npm run dev
+```
+
+Frontend runs at: `http://127.0.0.1:5173`
+
+### 3) Optional frontend env
+Create `frontend/.env`:
+```bash
+VITE_API_BASE_URL=http://127.0.0.1:8000
+```
+
+If not set, frontend defaults to `http://127.0.0.1:8000`.
+
+## Backend integration
+The frontend consumes backend APIs via `frontend/src/api.js` using Axios and a JWT token stored in localStorage (`moodsense_token`).
+
+### Auth APIs
+- `POST /auth/signup`
+- `POST /auth/login`
+- `GET /auth/me`
+
+### Daily mood + insights APIs
+- `POST /log-data`
+- `GET /today`
+- `GET /mood/7days`
+- `GET /mood/30days`
+- `GET /predict-next-day`
+- `GET /ai-insights`
+- `GET /depression-analysis`
+
+### Profile APIs
+- `GET /profile`
+- `PUT /profile`
+
+### Connection APIs
+- `GET /connections/search?email=...`
+- `POST /connections/request`
+- `POST /connections/request/respond`
+- `GET /connections`
+
+### Nearby doctors API
+- `GET /location-search?latitude=...&longitude=...&radius_km=...&provider_type=...`
+- Supports `provider_type`: `all`, `psychiatrist`, `psychologist`
+- Radius constrained to 50-100 km
+
+## Routing structure (frontend)
+Defined in `frontend/src/App.jsx`:
+
+- `/login` → Login page
+- `/signup` → Signup page
+- `/` → Dashboard
+- `/prediction` → Prediction
+- `/insights` → AI Insights
+- `/depression` → Depression analysis
+- `/doctors` → Nearby doctors
+- `/connections` → Connections
+- `/profile` → Profile
+
+All routes except `/login` and `/signup` are protected by `ProtectedRoute`.
+
+## UI notes
+- Modern dark theme with responsive layout
+- Card-based information hierarchy
+- Chart components implemented using Recharts for clean visualizations
+
+## Nearby doctors location logic
+- Current implementation uses mock provider data
+- Haversine formula computes distance from user coordinates
+- Returns only providers within selected radius (50-100 km)
+- Results sorted nearest to farthest
