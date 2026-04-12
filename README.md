@@ -1,4 +1,4 @@
-# MoodSense AI - Version 13
+# MoodSense AI - Version 14
 
 MoodSense AI now includes a full React frontend and FastAPI backend integration for end-to-end mental wellness tracking.
 
@@ -23,6 +23,16 @@ uvicorn backend.app.main:app --reload
 ```
 
 Backend runs at: `http://127.0.0.1:8000`
+
+#### CORS for frontend
+Backend now enables CORS for local frontend origins by default:
+- `http://localhost:5173`
+- `http://127.0.0.1:5173`
+
+You can override this with:
+```bash
+export CORS_ALLOW_ORIGINS="http://localhost:5173,http://127.0.0.1:5173"
+```
 
 ### 2) Frontend
 ```bash
