@@ -8,8 +8,9 @@ from .ml_pipeline import MLDependencyError, train_model_and_report
 from .routes.core import router as core_router
 from .routes.log_data import router as log_data_router
 from .routes.mood_insights import router as mood_insights_router
+from .scheduler import start_scheduler, stop_scheduler
 
-app = FastAPI(title="MoodSense AI", version="6.0.0")
+app = FastAPI(title="MoodSense AI", version="7.0.0")
 app.include_router(core_router)
 app.include_router(auth_router)
 app.include_router(log_data_router)
@@ -28,3 +29,10 @@ def startup_event() -> None:
         train_model_and_report()
     except MLDependencyError as exc:
         logger.warning("ML model training skipped at startup: %s", exc)
+
+    start_scheduler()
+
+
+@app.on_event("shutdown")
+def shutdown_event() -> None:
+    stop_scheduler()

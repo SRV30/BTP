@@ -1,51 +1,50 @@
-# MoodSense AI - Version 6
+# MoodSense AI - Version 7
 
-## What Version 6 adds
-Version 6 upgrades Version 5 with a personalized agent endpoint:
+## What Version 7 adds
+Version 7 upgrades Version 6 with reliable scheduled mood refresh jobs using **APScheduler**.
 
-- `GET /ai-insights` (authenticated)
-- Uses user-specific:
-  - last 7 days data
-  - last 30 days data
-  - current mood (today)
-- Returns:
-  - `emotional_assessment`
-  - `recommendations`
+### New scheduler behavior
+Jobs run daily at **UTC** times:
+- 12:05 AM
+- 6:15 AM
+- 12:30 PM
+- 6:45 PM
 
-Version 5 ML endpoint (`GET /predict-next-day`) remains available.
+At each run, the scheduler:
+1. Reads all users.
+2. Uses each user's latest known metrics (`screen_time`, `steps`, `sleep`, `streak`).
+3. Updates/creates today's log.
+4. Recalculates emotions + mood with the mood engine.
 
-## Agent logic
-The agent computes a personalized routine profile from recent user logs:
+This keeps today's data fresh even if a user has not manually logged new data yet.
 
-1. Pulls the user's last 7-day and 30-day logs.
-2. Uses latest available baseline (7-day preferred, else 30-day).
-3. Calculates averages:
-   - `screen_time`
-   - `sleep`
-   - `steps`
-4. Detects dominant recent mood + merges with current mood signal.
-5. Builds dynamic recommendations with explicit rules:
-   - **Screen high (`> 6h/day`) → suggest reduction**
-   - **Sleep low (`< 7h/night`) → suggest improvement**
-   - **Steps low (`< 7000/day`) → suggest activity**
+## Scheduler setup
+- Implemented in `backend/app/scheduler.py` using `BackgroundScheduler` + `CronTrigger`.
+- Started from FastAPI `startup` event.
+- Stopped cleanly on `shutdown` event.
+- Reliability settings:
+  - `coalesce=True`
+  - `max_instances=1`
+  - `misfire_grace_time=1800` (30 minutes)
 
-## Personalization concept (different output per user)
-`/ai-insights` is user-specific because it is built from each authenticated user’s own stored logs and mood history.
+## How it runs
+- On app startup:
+  - DB indexes are ensured.
+  - ML model training is attempted (skipped gracefully if ML deps are missing).
+  - APScheduler starts and registers four daily jobs.
+- On every scheduled trigger:
+  - `update_today_data_and_recalculate_mood()` executes.
+  - It upserts one daily log per user for today and recalculates mood.
+- On app shutdown:
+  - Scheduler shuts down cleanly.
 
-Different users with different averages and mood trends receive different:
-- assessments (mood pattern + routine summary)
-- recommendations (only triggered for that user’s weak areas)
-
-So two users with the same current mood can still receive different guidance if their sleep/steps/screen patterns differ.
-
-## Existing Version 5 ML features
-Version 5 ML pipeline is preserved:
-
-- RandomForestRegressor for emotion prediction
-- RandomForestClassifier for mood prediction
-- Training from `data/data.csv`
-- Pickle persistence at `backend/app/model.pkl`
-- Prediction API: `GET /predict-next-day`
+## Existing Version 6 features
+- `GET /ai-insights` for personalized emotional assessment + recommendations.
+- `GET /predict-next-day` for ML-based mood/emotion prediction.
+- Dynamic recommendation rules in `ai-insights`:
+  - high screen time → reduction suggestion
+  - low sleep → sleep improvement
+  - low steps → activity suggestion
 
 ## Dependency behavior
 - Core APIs still boot even if `scikit-learn` is not installed.
