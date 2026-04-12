@@ -181,9 +181,36 @@ async def predict_next_day(current_user: dict = Depends(get_current_user)) -> di
             "message": "No emotion data found for today. Log today's data first.",
         }
 
-    emotions = today_doc.get("emotions", {})
-    top_3 = sorted(emotions.items(), key=lambda item: float(item[1]), reverse=True)[:3]
-    total = sum(float(score) * 100 for _, score in top_3)
+    emotions = {name: float(score) for name, score in today_doc.get("emotions", {}).items()}
+
+    history_cursor = mongo.get_daily_logs_collection().find(
+        {"user_id": user_id, "date": {"$lt": today}},
+        {"_id": 0, "emotions": 1},
+    ).sort("date", -1).limit(30)
+    history = list(history_cursor)
+
+    if history:
+        baseline_emotions: dict[str, float] = {}
+        for row in history:
+            for emotion, score in (row.get("emotions") or {}).items():
+                baseline_emotions[emotion] = baseline_emotions.get(emotion, 0.0) + float(score)
+
+        history_count = len(history)
+        for emotion in baseline_emotions:
+            baseline_emotions[emotion] = baseline_emotions[emotion] / history_count
+
+        for emotion in emotions:
+            baseline_score = baseline_emotions.get(emotion, emotions[emotion])
+            emotions[emotion] = (0.7 * emotions[emotion]) + (0.3 * baseline_score)
+
+    # Female + active cycle: increase stress-linked probabilities.
+    if str(current_user.get("gender", "")).lower() == "female" and bool(current_user.get("menstruation_cycle", False)):
+        for stress_emotion in ("Sadness", "Fear", "Anger"):
+            if stress_emotion in emotions:
+                emotions[stress_emotion] += 0.08
+
+    top_3 = sorted(emotions.items(), key=lambda item: item[1], reverse=True)[:3]
+    total = sum(score for _, score in top_3)
 
     if total <= 0:
         return {
@@ -194,12 +221,18 @@ async def predict_next_day(current_user: dict = Depends(get_current_user)) -> di
     predictions = [
         {
             "emotion": emotion,
-            "probability": int((float(score) * 100 / total) * 100),
+            "probability": int((score / total) * 100),
         }
         for emotion, score in top_3
     ]
 
-    return {"predictions": predictions}
+    return {
+        "predictions": predictions,
+        "personalization_applied": {
+            "cycle_stress_adjustment": str(current_user.get("gender", "")).lower() == "female" and bool(current_user.get("menstruation_cycle", False)),
+            "history_baseline_days": len(history),
+        },
+    }
 
 
 @router.get("/ai-insights")

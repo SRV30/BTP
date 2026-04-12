@@ -1,88 +1,72 @@
-# MoodSense AI - Version 9
+# MoodSense AI - Version 10B
 
-## What Version 9 adds
-Version 9 upgrades Version 8 with secure password recovery APIs.
+## What Version 10B adds
+Version 10B upgrades Version 10A with richer profile fields and smart personalization logic for mood prediction.
 
-### New auth APIs
-- `POST /auth/forgot-password`
-- `POST /auth/reset-password`
+## My Profile fields
+`GET /profile` and `PUT /profile` now support:
+- `name`
+- `email`
+- `profile_photo`
+- `phone_number`
+- `address`
+- `age`
+- `gender` (`male`, `female`, `other`)
+- `disability` (`true`/`false`)
+- `menstruation_cycle` (`true`/`false`, applicable when `gender=female`)
+- `cycle_days` (number of days, only when `menstruation_cycle=true`)
 
-## Password reset flow
-1. User submits email to `POST /auth/forgot-password`.
-2. Server generates a random reset token.
-3. Server stores only the **SHA-256 hash** of the token in DB + expiry timestamp.
-4. Token is sent via:
-   - SMTP email (if SMTP env vars are configured), or
-   - mock console output (`[MOCK-EMAIL]`) if SMTP is not configured.
-5. User submits token + new password to `POST /auth/reset-password`.
-6. Server verifies token hash and expiry.
-7. If valid, server hashes new password with bcrypt and updates user password.
-8. Reset token fields are deleted immediately after successful reset.
+## Personalization logic
+Version 10B introduces profile-aware and history-aware logic:
 
-## How token security works
-- Token is generated with `secrets.token_urlsafe(32)`.
-- Raw token is never stored in DB.
-- Stored value: `reset_token_hash`.
-- Expiry: `reset_token_expires_at` (default 30 minutes).
-- Invalid/expired token returns HTTP 400.
-- Passwords are always stored as bcrypt hashes.
+1. **Female + active cycle adjustment**
+   - If `gender=female` and `menstruation_cycle=true`, stress-linked emotions are boosted.
+   - This increases probability for stress-correlated outcomes (e.g., Sadness/Fear/Anger) in next-day prediction.
 
-## How to test password reset APIs
+2. **Disability-aware steps normalization**
+   - Daily emotion calculation normalizes steps against a lower step goal when `disability=true`.
+   - This avoids over-penalizing activity levels for users with accessibility constraints.
 
-### 1) Request reset token
+3. **Personal baseline comparison**
+   - Mood scoring compares today’s metrics with the user’s own recent history (screen time, sleep, and steps).
+   - Next-day prediction blends today’s emotions with recent emotional baseline to produce personalized probabilities.
+
+## How profile affects mood prediction
+- `POST /log-data` uses profile attributes and personal baseline to compute current-day emotions.
+- `GET /predict-next-day` then applies:
+  - a history blend using personal emotional trend,
+  - and an additional cycle-based stress probability adjustment when applicable.
+- This means two users with the same raw inputs can receive different predictions based on profile context and personal history.
+
+## Example profile update
 ```bash
-curl -X POST http://127.0.0.1:8000/auth/forgot-password \
+curl -X PUT http://127.0.0.1:8000/profile \
+  -H "Authorization: Bearer <ACCESS_TOKEN>" \
   -H "Content-Type: application/json" \
-  -d '{"email":"user@gmail.com"}'
+  -d '{
+    "name": "Jane Doe",
+    "age": 29,
+    "gender": "female",
+    "disability": false,
+    "menstruation_cycle": true,
+    "cycle_days": 5
+  }'
 ```
 
-Response:
-```json
-{"message":"If that email exists, a reset token has been sent"}
-```
-
-> If SMTP is not set, copy token from backend logs (`[MOCK-EMAIL]`).
-
-### 2) Reset password with token
-```bash
-curl -X POST http://127.0.0.1:8000/auth/reset-password \
-  -H "Content-Type: application/json" \
-  -d '{"token":"<TOKEN_FROM_EMAIL_OR_LOG>","new_password":"NewStrongPass123"}'
-```
-
-Response:
-```json
-{"message":"Password reset successful"}
-```
-
-### 3) Verify login with new password
-```bash
-curl -X POST http://127.0.0.1:8000/auth/login \
-  -H "Content-Type: application/json" \
-  -d '{"email":"user@gmail.com","password":"NewStrongPass123"}'
-```
-
-## Existing Version 8 features
-- Smart deterministic `GET /predict-next-day` based on today’s top emotions.
-- `GET /ai-insights` for personalized recommendations.
-- APScheduler daily mood refresh jobs at:
-  - 12:05 AM UTC
-  - 6:15 AM UTC
-  - 12:30 PM UTC
-  - 6:45 PM UTC
-
-## Environment variables
-```env
-MONGO_URI=...
-JWT_SECRET=...
-
-# Optional for real email
-SMTP_HOST=smtp.gmail.com
-SMTP_PORT=587
-SMTP_USER=your_username
-SMTP_PASS=your_password
-SMTP_FROM=no-reply@yourapp.com
-```
+## Existing APIs
+- Auth:
+  - `POST /auth/signup`
+  - `POST /auth/login`
+  - `POST /auth/forgot-password`
+  - `POST /auth/reset-password`
+  - `GET /auth/me`
+- Logs and insights:
+  - `POST /log-data`
+  - `GET /mood/7days`
+  - `GET /mood/30days`
+  - `GET /today`
+  - `GET /predict-next-day`
+  - `GET /ai-insights`
 
 ## Run locally
 ```bash
