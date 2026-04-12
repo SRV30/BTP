@@ -1,0 +1,6 @@
+Data/raw
+Data/processed
+Data/sequences
+.env
+*.pkl
+backend/artifacts/
