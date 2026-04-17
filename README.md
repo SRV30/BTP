@@ -117,13 +117,19 @@ Use these steps:
 1. Make sure Node.js is 18 or 20 (`node -v`).
 2. Delete old modules and lock file in `mobile/`.
 3. Reinstall with clean dependency resolution.
+4. Verify Metro version is pinned to `0.80.12`.
 
 ```bash
 cd mobile
 rm -rf node_modules package-lock.json
+npm cache clean --force
 npm install
+npm ls metro
 npx expo start
 ```
+
+
+`npm ls metro` should show `metro@0.80.12` near the top. If it shows another major/minor version, run a fresh install again before starting Expo.
 
 On PowerShell, remove folders/files with:
 
