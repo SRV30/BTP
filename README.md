@@ -1,110 +1,104 @@
-# MoodSense AI - Version 14
+# MoodSense AI — Version 15 (Android App Base with Expo)
 
-MoodSense AI now includes a full React frontend and FastAPI backend integration for end-to-end mental wellness tracking.
+This version introduces a mobile-first Android app base for **MoodSense AI** using **Expo (React Native)** with **NativeWind** and **Axios**.
 
-## Features in the frontend
-- Authentication (signup/login)
-- Dashboard with daily log submission
-- Prediction view (next-day emotion probabilities)
-- AI insights view
-- Profile management
-- Connections management
-- Depression analysis
-- Nearby doctor search (psychiatrists + psychologists)
+## Tech Stack
 
-## Full setup
+- Expo (React Native)
+- NativeWind (Tailwind CSS for React Native)
+- Axios
 
-### 1) Backend
-```bash
-python -m venv .venv
-source .venv/bin/activate
-pip install -r requirements.txt
-uvicorn backend.app.main:app --reload
+## Implemented Features
+
+- Authentication screens:
+  - Login
+  - Signup
+- Basic dashboard:
+  - Today Mood card
+  - Simple emotion display
+  - Static UI (no backend integration yet)
+- UI style:
+  - White + Blue theme
+  - Rounded cards
+  - Dark mode support
+
+## Mobile App Folder Structure
+
+The Expo app is located in `mobile/`:
+
+```text
+mobile/
+├── App.js
+├── app.json
+├── babel.config.js
+├── tailwind.config.js
+├── metro.config.js
+├── screens/
+├── components/
+├── services/
+├── store/
+└── utils/
 ```
 
-Backend runs at: `http://127.0.0.1:8000`
+## Prerequisites
 
-#### CORS for frontend
-Backend now enables CORS for local frontend origins by default:
-- `http://localhost:5173`
-- `http://127.0.0.1:5173`
+### 1) Install Node.js
 
-You can override this with:
+Install Node.js (LTS recommended):
+- https://nodejs.org
+
+Verify:
+
 ```bash
-export CORS_ALLOW_ORIGINS="http://localhost:5173,http://127.0.0.1:5173"
+node -v
+npm -v
 ```
 
-### 2) Frontend
+### 2) Install Expo CLI
+
+You can use Expo through `npx` (recommended, no global install needed), or install globally:
+
 ```bash
-cd frontend
+npm install -g expo-cli
+```
+
+## Run the Project
+
+From repository root:
+
+```bash
+cd mobile
 npm install
-npm run dev
+npx expo start
 ```
 
-Frontend runs at: `http://127.0.0.1:5173`
+## Run on Phone using Expo Go
 
-### 3) Optional frontend env
-Create `frontend/.env`:
+1. Install **Expo Go** on your Android phone from Google Play Store.
+2. Ensure your laptop and phone are on the same Wi-Fi network.
+3. Run:
+
 ```bash
-VITE_API_BASE_URL=http://127.0.0.1:8000
+cd mobile
+npx expo start
 ```
 
-If not set, frontend defaults to `http://127.0.0.1:8000`.
+4. Scan the QR code shown in terminal/browser using Expo Go.
+5. The app will open on your phone.
 
-## Backend integration
-The frontend consumes backend APIs via `frontend/src/api.js` using Axios and a JWT token stored in localStorage (`moodsense_token`).
+## Run on Laptop Emulator
 
-### Auth APIs
-- `POST /auth/signup`
-- `POST /auth/login`
-- `GET /auth/me`
+After starting Expo:
 
-### Daily mood + insights APIs
-- `POST /log-data`
-- `GET /today`
-- `GET /mood/7days`
-- `GET /mood/30days`
-- `GET /predict-next-day`
-- `GET /ai-insights`
-- `GET /depression-analysis`
+```bash
+cd mobile
+npm run android
+```
 
-### Profile APIs
-- `GET /profile`
-- `PUT /profile`
+(Requires Android Studio emulator configured.)
 
-### Connection APIs
-- `GET /connections/search?email=...`
-- `POST /connections/request`
-- `POST /connections/request/respond`
-- `GET /connections`
+## Notes
 
-### Nearby doctors API
-- `GET /location-search?latitude=...&longitude=...&radius_km=...&provider_type=...`
-- Supports `provider_type`: `all`, `psychiatrist`, `psychologist`
-- Radius constrained to 50-100 km
-
-## Routing structure (frontend)
-Defined in `frontend/src/App.jsx`:
-
-- `/login` → Login page
-- `/signup` → Signup page
-- `/` → Dashboard
-- `/prediction` → Prediction
-- `/insights` → AI Insights
-- `/depression` → Depression analysis
-- `/doctors` → Nearby doctors
-- `/connections` → Connections
-- `/profile` → Profile
-
-All routes except `/login` and `/signup` are protected by `ProtectedRoute`.
-
-## UI notes
-- Modern dark theme with responsive layout
-- Card-based information hierarchy
-- Chart components implemented using Recharts for clean visualizations
-
-## Nearby doctors location logic
-- Current implementation uses mock provider data
-- Haversine formula computes distance from user coordinates
-- Returns only providers within selected radius (50-100 km)
-- Results sorted nearest to farthest
+- This base is static UI only and prepared for backend integration later.
+- Axios client is scaffolded in `mobile/services/api.js` for future API wiring.
+- The setup is designed to run easily on both laptop and mobile devices.

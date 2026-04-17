@@ -1,0 +1,22 @@
+{
+  "expo": {
+    "name": "MoodSense AI",
+    "slug": "moodsense-ai",
+    "version": "1.0.0",
+    "orientation": "portrait",
+    "userInterfaceStyle": "automatic",
+    "splash": {
+      "resizeMode": "contain",
+      "backgroundColor": "#ffffff"
+    },
+    "assetBundlePatterns": [
+      "**/*"
+    ],
+    "android": {
+      "package": "com.moodsense.ai",
+      "adaptiveIcon": {
+        "backgroundColor": "#2563eb"
+      }
+    }
+  }
+}
