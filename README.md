@@ -44,7 +44,7 @@ mobile/
 
 ### 1) Install Node.js
 
-Install Node.js (LTS recommended):
+Install Node.js **18 or 20 LTS** (recommended for Expo SDK 51):
 - https://nodejs.org
 
 Verify:
@@ -54,12 +54,14 @@ node -v
 npm -v
 ```
 
-### 2) Install Expo CLI
+### 2) Expo CLI usage
 
-You can use Expo through `npx` (recommended, no global install needed), or install globally:
+Use Expo through `npx` (recommended). Do **not** use the old global `expo-cli` package.
+
+If you installed legacy global CLI earlier, remove it:
 
 ```bash
-npm install -g expo-cli
+npm uninstall -g expo-cli
 ```
 
 ## Run the Project
@@ -102,3 +104,32 @@ npm run android
 - This base is static UI only and prepared for backend integration later.
 - Axios client is scaffolded in `mobile/services/api.js` for future API wiring.
 - The setup is designed to run easily on both laptop and mobile devices.
+
+
+## Troubleshooting (Windows / Node mismatch)
+
+If you see this error when starting Expo:
+
+`Package subpath ./src/lib/TerminalReporter is not defined by "exports" in node_modules/metro/package.json`
+
+Use these steps:
+
+1. Make sure Node.js is 18 or 20 (`node -v`).
+2. Delete old modules and lock file in `mobile/`.
+3. Reinstall with clean dependency resolution.
+
+```bash
+cd mobile
+rm -rf node_modules package-lock.json
+npm install
+npx expo start
+```
+
+On PowerShell, remove folders/files with:
+
+```powershell
+Remove-Item -Recurse -Force node_modules
+Remove-Item -Force package-lock.json
+```
+
+This project pins Metro-compatible versions via `package.json` `overrides` to avoid that crash.
