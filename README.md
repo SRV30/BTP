@@ -1,110 +1,141 @@
-# MoodSense AI - Version 14
+# MoodSense AI — Version 15 (Android App Base with Expo)
 
-MoodSense AI now includes a full React frontend and FastAPI backend integration for end-to-end mental wellness tracking.
+This version introduces a mobile-first Android app base for **MoodSense AI** using **Expo (React Native)** with **NativeWind** and **Axios**.
 
-## Features in the frontend
-- Authentication (signup/login)
-- Dashboard with daily log submission
-- Prediction view (next-day emotion probabilities)
-- AI insights view
-- Profile management
-- Connections management
-- Depression analysis
-- Nearby doctor search (psychiatrists + psychologists)
+## Tech Stack
 
-## Full setup
+- Expo (React Native)
+- NativeWind (Tailwind CSS for React Native)
+- Axios
 
-### 1) Backend
-```bash
-python -m venv .venv
-source .venv/bin/activate
-pip install -r requirements.txt
-uvicorn backend.app.main:app --reload
+## Implemented Features
+
+- Authentication screens:
+  - Login
+  - Signup
+- Basic dashboard:
+  - Today Mood card
+  - Simple emotion display
+  - Static UI (no backend integration yet)
+- UI style:
+  - White + Blue theme
+  - Rounded cards
+  - Dark mode support
+
+## Mobile App Folder Structure
+
+The Expo app is located in `mobile/`:
+
+```text
+mobile/
+├── App.js
+├── app.json
+├── babel.config.js
+├── tailwind.config.js
+├── metro.config.js
+├── screens/
+├── components/
+├── services/
+├── store/
+└── utils/
 ```
 
-Backend runs at: `http://127.0.0.1:8000`
+## Prerequisites
 
-#### CORS for frontend
-Backend now enables CORS for local frontend origins by default:
-- `http://localhost:5173`
-- `http://127.0.0.1:5173`
+### 1) Install Node.js
 
-You can override this with:
+Install Node.js **18 or 20 LTS** (recommended for Expo SDK 51):
+- https://nodejs.org
+
+Verify:
+
 ```bash
-export CORS_ALLOW_ORIGINS="http://localhost:5173,http://127.0.0.1:5173"
+node -v
+npm -v
 ```
 
-### 2) Frontend
+### 2) Expo CLI usage
+
+Use Expo through `npx` (recommended). Do **not** use the old global `expo-cli` package.
+
+If you installed legacy global CLI earlier, remove it:
+
 ```bash
-cd frontend
+npm uninstall -g expo-cli
+```
+
+## Run the Project
+
+From repository root:
+
+```bash
+cd mobile
 npm install
-npm run dev
+npx expo start
 ```
 
-Frontend runs at: `http://127.0.0.1:5173`
+## Run on Phone using Expo Go
 
-### 3) Optional frontend env
-Create `frontend/.env`:
+1. Install **Expo Go** on your Android phone from Google Play Store.
+2. Ensure your laptop and phone are on the same Wi-Fi network.
+3. Run:
+
 ```bash
-VITE_API_BASE_URL=http://127.0.0.1:8000
+cd mobile
+npx expo start
 ```
 
-If not set, frontend defaults to `http://127.0.0.1:8000`.
+4. Scan the QR code shown in terminal/browser using Expo Go.
+5. The app will open on your phone.
 
-## Backend integration
-The frontend consumes backend APIs via `frontend/src/api.js` using Axios and a JWT token stored in localStorage (`moodsense_token`).
+## Run on Laptop Emulator
 
-### Auth APIs
-- `POST /auth/signup`
-- `POST /auth/login`
-- `GET /auth/me`
+After starting Expo:
 
-### Daily mood + insights APIs
-- `POST /log-data`
-- `GET /today`
-- `GET /mood/7days`
-- `GET /mood/30days`
-- `GET /predict-next-day`
-- `GET /ai-insights`
-- `GET /depression-analysis`
+```bash
+cd mobile
+npm run android
+```
 
-### Profile APIs
-- `GET /profile`
-- `PUT /profile`
+(Requires Android Studio emulator configured.)
 
-### Connection APIs
-- `GET /connections/search?email=...`
-- `POST /connections/request`
-- `POST /connections/request/respond`
-- `GET /connections`
+## Notes
 
-### Nearby doctors API
-- `GET /location-search?latitude=...&longitude=...&radius_km=...&provider_type=...`
-- Supports `provider_type`: `all`, `psychiatrist`, `psychologist`
-- Radius constrained to 50-100 km
+- This base is static UI only and prepared for backend integration later.
+- Axios client is scaffolded in `mobile/services/api.js` for future API wiring.
+- The setup is designed to run easily on both laptop and mobile devices.
 
-## Routing structure (frontend)
-Defined in `frontend/src/App.jsx`:
 
-- `/login` → Login page
-- `/signup` → Signup page
-- `/` → Dashboard
-- `/prediction` → Prediction
-- `/insights` → AI Insights
-- `/depression` → Depression analysis
-- `/doctors` → Nearby doctors
-- `/connections` → Connections
-- `/profile` → Profile
+## Troubleshooting (Windows / Node mismatch)
 
-All routes except `/login` and `/signup` are protected by `ProtectedRoute`.
+If you see this error when starting Expo:
 
-## UI notes
-- Modern dark theme with responsive layout
-- Card-based information hierarchy
-- Chart components implemented using Recharts for clean visualizations
+`Package subpath ./src/lib/TerminalReporter is not defined by "exports" in node_modules/metro/package.json`
 
-## Nearby doctors location logic
-- Current implementation uses mock provider data
-- Haversine formula computes distance from user coordinates
-- Returns only providers within selected radius (50-100 km)
-- Results sorted nearest to farthest
+Use these steps:
+
+1. Make sure Node.js is 18 or 20 (`node -v`).
+2. Delete old modules and lock file in `mobile/`.
+3. Reinstall with clean dependency resolution.
+4. Verify Metro version is pinned to `0.80.12`.
+
+```bash
+cd mobile
+rm -rf node_modules package-lock.json
+npm cache clean --force
+npm install
+npm ls metro
+npx expo start
+```
+
+
+`npm ls metro` should show `metro@0.80.12` near the top. If it shows another major/minor version, run a fresh install again before starting Expo.
+
+On PowerShell, remove folders/files with:
+
+```powershell
+Remove-Item -Recurse -Force node_modules
+Remove-Item -Force package-lock.json
+```
+
+This project pins Metro-compatible versions via `package.json` `overrides` to avoid that crash.

@@ -1,0 +1,40 @@
+{
+  "name": "moodsense-ai-mobile",
+  "version": "1.0.1",
+  "private": true,
+  "main": "node_modules/expo/AppEntry.js",
+  "scripts": {
+    "start": "expo start",
+    "android": "expo start --android",
+    "ios": "expo start --ios",
+    "web": "expo start --web",
+    "check": "expo config --type public"
+  },
+  "dependencies": {
+    "axios": "^1.8.2",
+    "expo": "~51.0.39",
+    "expo-status-bar": "~1.12.1",
+    "nativewind": "^4.1.23",
+    "react": "18.2.0",
+    "react-native": "0.74.5"
+  },
+  "devDependencies": {
+    "@babel/core": "^7.25.2",
+    "metro": "0.80.12",
+    "metro-config": "0.80.12",
+    "metro-core": "0.80.12",
+    "metro-resolver": "0.80.12",
+    "metro-runtime": "0.80.12",
+    "tailwindcss": "^3.4.17"
+  },
+  "overrides": {
+    "metro": "0.80.12",
+    "metro-config": "0.80.12",
+    "metro-core": "0.80.12",
+    "metro-resolver": "0.80.12",
+    "metro-runtime": "0.80.12"
+  },
+  "engines": {
+    "node": ">=18 <22"
+  }
+}
