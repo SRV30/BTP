@@ -17,6 +17,11 @@
       "adaptiveIcon": {
         "backgroundColor": "#2563eb"
       }
+    },
+    "scheme": "moodsenseai",
+    "updates": {
+      "checkAutomatically": "ON_LOAD",
+      "fallbackToCacheTimeout": 0
     }
   }
 }
