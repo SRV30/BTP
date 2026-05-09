@@ -12,3 +12,4 @@ mobile/node_modules
 # Expo local state
 .expo/
 mobile/.expo/
+mobile/.env
