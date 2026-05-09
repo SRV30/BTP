@@ -10,18 +10,29 @@ import {
   Platform,
   Animated,
   Easing,
+  ActivityIndicator,
 } from "react-native";
 
 import { LinearGradient } from "expo-linear-gradient";
 import { useEffect, useRef, useState } from "react";
 import { FontAwesome } from "@expo/vector-icons";
 import { useRouter } from "expo-router";
+
+import AsyncStorage from "@react-native-async-storage/async-storage";
+
+import { authApi } from "../../services/api";
+
 import logo from "../../assets/images/logo.png";
 
 export default function LoginScreen() {
   const router = useRouter();
 
   const [showPassword, setShowPassword] = useState(false);
+
+  const [email, setEmail] = useState("");
+  const [password, setPassword] = useState("");
+
+  const [loading, setLoading] = useState(false);
 
   const fadeAnim = useRef(new Animated.Value(0)).current;
   const slideAnim = useRef(new Animated.Value(40)).current;
@@ -50,7 +61,37 @@ export default function LoginScreen() {
         useNativeDriver: true,
       }),
     ]).start();
-  }, [fadeAnim, scaleAnim, slideAnim]);
+  }, []);
+
+  const handleLogin = async () => {
+    try {
+      if (!email || !password) {
+        alert("Please enter email and password");
+        return;
+      }
+
+      setLoading(true);
+
+      const response = await authApi.login({
+        email,
+        password,
+      });
+
+      const token = response.data.access_token;
+
+      await AsyncStorage.setItem("moodsense_token", token);
+
+      alert("Login Successful");
+
+      router.replace("/dashboard");
+    } catch (error: any) {
+      console.log(error?.response?.data);
+
+      alert(error?.response?.data?.detail || "Login failed");
+    } finally {
+      setLoading(false);
+    }
+  };
 
   return (
     <>
@@ -78,10 +119,7 @@ export default function LoginScreen() {
             <Animated.View
               style={{
                 opacity: fadeAnim,
-                transform: [
-                  { translateY: slideAnim },
-                  { scale: scaleAnim },
-                ],
+                transform: [{ translateY: slideAnim }, { scale: scaleAnim }],
               }}
             >
               <View
@@ -110,8 +148,9 @@ export default function LoginScreen() {
                   <Image
                     source={logo}
                     style={{
-                      width: 140,
-                      height: 140,
+                      width: 52,
+                      height: 52,
+                      resizeMode: "contain",
                     }}
                   />
                 </View>
@@ -160,6 +199,10 @@ export default function LoginScreen() {
                 <TextInput
                   placeholder="example@email.com"
                   placeholderTextColor="#6B7280"
+                  value={email}
+                  onChangeText={setEmail}
+                  keyboardType="email-address"
+                  autoCapitalize="none"
                   style={{
                     color: "#FFFFFF",
                     fontSize: 17,
@@ -193,6 +236,8 @@ export default function LoginScreen() {
                     placeholder="••••••••"
                     placeholderTextColor="#6B7280"
                     secureTextEntry={!showPassword}
+                    value={password}
+                    onChangeText={setPassword}
                     style={{
                       flex: 1,
                       color: "#FFFFFF",
@@ -201,16 +246,10 @@ export default function LoginScreen() {
                   />
 
                   <TouchableOpacity
-                    onPress={() =>
-                      setShowPassword(!showPassword)
-                    }
+                    onPress={() => setShowPassword(!showPassword)}
                   >
                     <FontAwesome
-                      name={
-                        showPassword
-                          ? "eye-slash"
-                          : "eye"
-                      }
+                      name={showPassword ? "eye-slash" : "eye"}
                       size={21}
                       color="#9CA3AF"
                     />
@@ -222,9 +261,7 @@ export default function LoginScreen() {
                     alignSelf: "flex-end",
                     marginTop: 18,
                   }}
-                  onPress={() =>
-                    router.push("/forgot-password")
-                  }
+                  onPress={() => router.push("/forgot-password")}
                 >
                   <Text
                     style={{
@@ -240,6 +277,8 @@ export default function LoginScreen() {
 
               <TouchableOpacity
                 activeOpacity={0.9}
+                onPress={handleLogin}
+                disabled={loading}
                 style={{
                   marginTop: 28,
                   borderRadius: 18,
@@ -260,15 +299,19 @@ export default function LoginScreen() {
                     borderRadius: 18,
                   }}
                 >
-                  <Text
-                    style={{
-                      color: "#FFFFFF",
-                      fontSize: 21,
-                      fontWeight: "700",
-                    }}
-                  >
-                    Sign In
-                  </Text>
+                  {loading ? (
+                    <ActivityIndicator color="#FFFFFF" />
+                  ) : (
+                    <Text
+                      style={{
+                        color: "#FFFFFF",
+                        fontSize: 21,
+                        fontWeight: "700",
+                      }}
+                    >
+                      Sign In
+                    </Text>
+                  )}
                 </LinearGradient>
               </TouchableOpacity>
 
@@ -284,8 +327,7 @@ export default function LoginScreen() {
                   style={{
                     flex: 1,
                     height: 1,
-                    backgroundColor:
-                      "rgba(255,255,255,0.08)",
+                    backgroundColor: "rgba(255,255,255,0.08)",
                   }}
                 />
 
@@ -303,8 +345,7 @@ export default function LoginScreen() {
                   style={{
                     flex: 1,
                     height: 1,
-                    backgroundColor:
-                      "rgba(255,255,255,0.08)",
+                    backgroundColor: "rgba(255,255,255,0.08)",
                   }}
                 />
               </View>
@@ -316,68 +357,23 @@ export default function LoginScreen() {
                   gap: 22,
                 }}
               >
-                <TouchableOpacity
-                  style={{
-                    width: 74,
-                    height: 74,
-                    borderRadius: 37,
-                    justifyContent: "center",
-                    alignItems: "center",
-                    backgroundColor:
-                      "rgba(10,18,45,0.85)",
-                    borderWidth: 1,
-                    borderColor:
-                      "rgba(255,255,255,0.08)",
-                  }}
-                >
-                  <FontAwesome
-                    name="google"
-                    size={30}
-                    color="#FFFFFF"
-                  />
-                </TouchableOpacity>
-
-                <TouchableOpacity
-                  style={{
-                    width: 74,
-                    height: 74,
-                    borderRadius: 37,
-                    justifyContent: "center",
-                    alignItems: "center",
-                    backgroundColor:
-                      "rgba(10,18,45,0.85)",
-                    borderWidth: 1,
-                    borderColor:
-                      "rgba(255,255,255,0.08)",
-                  }}
-                >
-                  <FontAwesome
-                    name="github"
-                    size={30}
-                    color="#FFFFFF"
-                  />
-                </TouchableOpacity>
-
-                <TouchableOpacity
-                  style={{
-                    width: 74,
-                    height: 74,
-                    borderRadius: 37,
-                    justifyContent: "center",
-                    alignItems: "center",
-                    backgroundColor:
-                      "rgba(10,18,45,0.85)",
-                    borderWidth: 1,
-                    borderColor:
-                      "rgba(255,255,255,0.08)",
-                  }}
-                >
-                  <FontAwesome
-                    name="facebook"
-                    size={30}
-                    color="#FFFFFF"
-                  />
-                </TouchableOpacity>
+                {["google", "github", "facebook"].map((icon, index) => (
+                  <TouchableOpacity
+                    key={index}
+                    style={{
+                      width: 74,
+                      height: 74,
+                      borderRadius: 37,
+                      justifyContent: "center",
+                      alignItems: "center",
+                      backgroundColor: "rgba(10,18,45,0.85)",
+                      borderWidth: 1,
+                      borderColor: "rgba(255,255,255,0.08)",
+                    }}
+                  >
+                    <FontAwesome name={icon as any} size={30} color="#FFFFFF" />
+                  </TouchableOpacity>
+                ))}
               </View>
 
               <View
@@ -396,11 +392,7 @@ export default function LoginScreen() {
                   Don&apos;t have an account?
                 </Text>
 
-                <TouchableOpacity
-                  onPress={() =>
-                    router.push("/signup")
-                  }
-                >
+                <TouchableOpacity onPress={() => router.push("/signup")}>
                   <Text
                     style={{
                       color: "#8B5CF6",
