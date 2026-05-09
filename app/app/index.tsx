@@ -4,7 +4,7 @@ import { LinearGradient } from "expo-linear-gradient";
 import { useEffect, useRef, useState } from "react";
 import { useRouter } from "expo-router";
 
-import logo from "../assets/images/logo.png";
+import logo from "../../assets/images/logo.png";
 
 export default function SplashScreen() {
   const router = useRouter();
